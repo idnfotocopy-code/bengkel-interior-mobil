@@ -12,26 +12,38 @@ npm install
 npm run dev
 ```
 
-Buka **http://localhost:3000**. Database `data/bengkel.db` dibuat & diisi data contoh otomatis saat pertama kali dibuka.
+Buka **http://localhost:3000**. Database `data/bengkel.db` dibuat otomatis saat pertama kali dibuka, **dalam keadaan kosong** (tanpa data demo): hanya pengaturan bawaan, daftar jenis pekerjaan bawaan, akun kas "Kas Tunai" (saldo 0), dan satu akun pemilik.
 
 - Mode produksi: `npm run build && npm start`
 - Ganti port bila 3000 terpakai: `npx next dev -p 3005`
-- Reset data ke kondisi awal: hentikan server, `npm run reset-db`, lalu `npm run dev` lagi.
+- Reset ke data awal (kosong): hentikan server, `npm run reset-db`, lalu `npm run dev` lagi. **Semua data hilang** — backup dulu.
 
 > Catatan: `better-sqlite3` memakai modul native. Bila `npm install` meminta izin menjalankan script install (npm 11 / `allow-scripts`), izinkan untuk paket `better-sqlite3`. Di Windows mungkin perlu "Desktop development with C++" bila binary prebuilt tidak tersedia.
 
-## Akun demo (KHUSUS UJI COBA)
+## Akun awal
 
-Semua password: `password123`. **Ganti / nonaktifkan sebelum dipakai sungguhan** (menu **Pengguna & Role**).
+Username **`pemilik`** / password **`password123`** — **ganti segera** di menu **Pengguna & Role** (edit akun → reset kata sandi). Password awal ini tidak ditampilkan di halaman login.
 
-| Username | Peran | Akses utama |
-|---|---|---|
-| pemilik | Pemilik | Semua menu & aksi, termasuk kelola pengguna dan laba rugi |
-| admin | Admin | Semua operasional (pelanggan, kendaraan, pesanan, produksi, persediaan, pembayaran/invoice/pengeluaran, pengaturan) — tanpa kelola pengguna & kas |
-| keuangan | Keuangan | Pembayaran, invoice, pengeluaran, kas, piutang, laba rugi; lihat semua pesanan & stok (tanpa ubah stok) |
-| gudang | Gudang | Bahan, pemasok, stok masuk/penyesuaian, pemakaian bahan; lihat pesanan terbatas; tanpa pembayaran/keuangan |
-| teknisi | Teknisi | Hanya pesanan yang ditugaskan: progres + foto, pemakaian bahan, status produksi; tanpa harga, pembayaran, pengguna |
-| teknisi2 | Teknisi | Contoh teknisi kedua |
+Akun lain (admin, keuangan, gudang, teknisi) dibuat sendiri oleh pemilik di **Pengguna & Role → Tambah**. Peran yang tersedia:
+
+| Peran | Akses utama |
+|---|---|
+| Pemilik | Semua menu & aksi, termasuk kelola pengguna, laba rugi, backup/restore |
+| Admin | Semua operasional (pelanggan, kendaraan, pesanan, produksi, persediaan, pembayaran/invoice/pengeluaran, pengaturan) — tanpa kelola pengguna & kas |
+| Keuangan | Pembayaran, invoice, pengeluaran, kas, piutang, laba rugi; lihat semua pesanan & stok (tanpa ubah stok) |
+| Gudang | Bahan, pemasok, stok masuk/penyesuaian, pemakaian bahan; lihat pesanan terbatas; tanpa pembayaran/keuangan |
+| Teknisi | Hanya pesanan yang ditugaskan: progres + foto, pemakaian bahan, status produksi; tanpa harga, pembayaran, pengguna |
+
+### Database lama yang masih berisi data demo
+
+Versi sebelumnya mengisi data contoh (pelanggan, pesanan, akun admin/keuangan/gudang/teknisi/teknisi2, dll). Update ini **tidak menghapus otomatis** database yang sudah ada. Untuk membersihkannya:
+
+1. **Pengaturan → Backup sekarang** (simpan dulu).
+2. **Pengaturan → Hapus seluruh data transaksi** (ketik `HAPUS TRANSAKSI`) — menghapus pesanan, pembayaran, invoice, pengeluaran, mutasi stok.
+3. Hapus manual data master contoh: pelanggan & kendaraan, bahan & pemasok, akun kas "Bank BCA Usaha", serta akun pengguna demo (`admin`, `keuangan`, `gudang`, `teknisi`, `teknisi2`) di **Pengguna & Role**.
+4. Lengkapi identitas usaha di **Pengaturan**.
+
+Alternatif bila belum ada data asli sama sekali: hentikan server, `npm run reset-db`, lalu jalankan lagi — database dibuat ulang kosong.
 
 ### Matriks hak akses menu
 
@@ -148,7 +160,7 @@ URL: `/api/pdf/{penawaran|wo|serah-terima}?id=<id pesanan>`, `/api/pdf/invoice?i
 ```
 app/(app)/...      halaman per modul + server actions
 app/api/pdf/[doc]  generator PDF
-lib/db.ts          skema SQLite & pengaturan     lib/seed.ts   data contoh
+lib/db.ts          skema SQLite & pengaturan     lib/seed.ts   data awal (akun pemilik)
 lib/rbac.ts        matriks hak akses             lib/biz.ts    perhitungan stok/keuangan
 lib/pdf.ts         kop & komponen PDF            lib/documents.ts  isi tiap dokumen
 data/              database SQLite               public/uploads    foto & logo
@@ -161,3 +173,7 @@ data/              database SQLite               public/uploads    foto & logo
 - Satu invoice aktif per pesanan; tagihan bertahap dicatat sebagai pembayaran, bukan beberapa invoice.
 - Belum ada modul hutang ke supplier dan PPN.
 - Aplikasi ditujukan untuk jaringan lokal/localhost. Sebelum dibuka ke internet, tambahkan HTTPS dan backup terjadwal untuk `data/bengkel.db`.
+
+---
+
+© 2026 idnindonesia @nickibnu

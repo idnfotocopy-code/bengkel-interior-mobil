@@ -12,8 +12,7 @@ export const BRAND = '#5b4330';
 export const BRAND_LIGHT = '#efe9e2';
 
 export function createDoc(title: string, landscape = false): Doc {
-  const st = settings();
-  const doc = new PDFDocument({ size: 'A4', layout: landscape ? 'landscape' : 'portrait', margins: { top: 40, bottom: 60, left: M, right: M }, bufferPages: true, info: { Title: title, Author: st.nama_usaha } });
+  const doc = new PDFDocument({ size: 'A4', layout: landscape ? 'landscape' : 'portrait', margins: { top: 40, bottom: 60, left: M, right: M }, bufferPages: true, info: { Title: title, Author: 'idnindonesia @nickibnu', Creator: '© 2026 idnindonesia @nickibnu' } });
   doc.font('Helvetica');
   return doc;
 }
@@ -163,7 +162,7 @@ export function finalize(doc: Doc, info: { by: string; docNo?: string }): Promis
     doc.font('Helvetica').fontSize(7).fillColor('#555');
     doc.text(`Dicetak: ${tglJam(nowStr())} WIB oleh ${info.by}${info.docNo ? ' • No. Dok: ' + info.docNo : ''}`, M, y, { width: W - M * 2 - 80, lineBreak: false });
     doc.text(`Hal. ${i + 1}/${range.count}`, W - M - 80, y, { width: 80, align: 'right', lineBreak: false });
-    doc.text(`${s.nama_usaha} • ${s.alamat} • ${s.telepon}`, M, y + 10, { width: W - M * 2, lineBreak: false });
+    doc.text([s.nama_usaha, s.alamat, s.telepon].filter(Boolean).join(' • '), M, y + 10, { width: W - M * 2, lineBreak: false });
     doc.page.margins.bottom = mb;
   }
   doc.fillColor('#000');

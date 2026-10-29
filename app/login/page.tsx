@@ -29,10 +29,7 @@ export default function Login({ searchParams }: { searchParams: any }) {
             <div><label className="label">Password</label><input name="password" type="password" className="input" required autoComplete="current-password" /></div>
             <button className="btn btn-primary w-full py-2.5">Masuk</button>
           </form>
-          <div className="mt-6 rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900">
-            <b>Akun demo</b> (khusus uji coba — ganti sebelum dipakai sungguhan):<br />
-            pemilik · admin · keuangan · gudang · teknisi — password: <code>password123</code>
-          </div>
+          <p className="mt-6 text-center text-xs text-slate-400">© 2026 idnindonesia @nickibnu</p>
         </div>
       </div>
     </div>);

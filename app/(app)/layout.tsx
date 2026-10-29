@@ -38,7 +38,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </header>
         <main className="p-4 md:p-6 flex-1">{children}</main>
-        <footer className="px-6 py-3 text-xs text-slate-400 border-t bg-white">© {new Date().getFullYear()} {s.nama_usaha} · Sistem Administrasi Bengkel</footer>
+        <footer className="px-6 py-3 text-xs text-slate-400 border-t bg-white">© 2026 idnindonesia @nickibnu</footer>
       </div>
     </div>);
 }
