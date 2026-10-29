@@ -12,7 +12,7 @@ export const MENUS: { key: MenuKey; href: string; label: string; icon: string; g
   { key: 'persediaan', href: '/persediaan', label: 'Persediaan', icon: '📦', group: 'Gudang & Keuangan', roles: ['pemilik', 'admin', 'keuangan', 'gudang'] },
   { key: 'keuangan', href: '/keuangan', label: 'Keuangan', icon: '💰', group: 'Gudang & Keuangan', roles: ['pemilik', 'admin', 'keuangan'] },
   { key: 'laporan', href: '/laporan', label: 'Laporan', icon: '📑', group: 'Gudang & Keuangan', roles: ['pemilik', 'admin', 'keuangan', 'gudang'] },
-  { key: 'users', href: '/users', label: 'Pengguna', icon: '🔐', group: 'Sistem', roles: ['pemilik'] },
+  { key: 'users', href: '/users', label: 'Pengguna & Role', icon: '🔐', group: 'Sistem', roles: ['pemilik'] },
   { key: 'pengaturan', href: '/pengaturan', label: 'Pengaturan', icon: '⚙️', group: 'Sistem', roles: ['pemilik', 'admin'] },
 ];
 export const canMenu = (role: string, key: MenuKey) => !!MENUS.find(m => m.key === key)?.roles.includes(role as Role);
@@ -86,3 +86,25 @@ export const PERM_LABEL: Record<Perm, string> = {
   'users.kelola': 'Pengguna: tambah / edit / nonaktifkan / hapus',
   'pengaturan.kelola': 'Pengaturan: edit profil bengkel',
 };
+
+/** Keterangan & warna badge tiap peran (halaman Pengguna & Role). */
+export const ROLE_DESC: Record<Role, string> = {
+  pemilik: 'Akses penuh: semua menu & aksi, kelola pengguna/peran, akun kas, dan laporan laba rugi.',
+  admin: 'Operasional harian: pelanggan, kendaraan, pesanan, produksi, persediaan, pembayaran & invoice, pengaturan. Tanpa kelola pengguna, akun kas, dan laba rugi.',
+  keuangan: 'Pembayaran, invoice, pengeluaran, akun kas & bank, serta laporan keuangan. Hanya melihat pesanan & stok.',
+  gudang: 'Master bahan & pemasok, stok masuk, penyesuaian/opname, pemakaian bahan, dan laporan stok.',
+  teknisi: 'Hanya pesanan yang ditugaskan kepadanya: ubah status kerja, catat progres & pemakaian bahan.',
+};
+export const ROLE_COLOR: Record<string, string> = { pemilik: 'violet', admin: 'sky', keuangan: 'green', gudang: 'amber', teknisi: 'orange' };
+
+/** Kelompok izin per modul untuk matriks yang mudah dibaca. */
+export const PERM_GROUPS: { label: string; icon: string; perms: Perm[] }[] = [
+  { label: 'Pelanggan & Kendaraan', icon: '👤', perms: ['pelanggan.kelola', 'kendaraan.kelola'] },
+  { label: 'Pesanan / Work Order', icon: '🧾', perms: ['pesanan.semua', 'pesanan.kelola', 'pesanan.harga', 'status.semua', 'pesanan.batal', 'pesanan.hapus', 'dokumen.pesanan'] },
+  { label: 'Produksi', icon: '🛠️', perms: ['progres.tulis', 'progres.kelola', 'bahan.pakai', 'bahan.batal'] },
+  { label: 'Persediaan', icon: '📦', perms: ['stok.master', 'stok.masuk', 'stok.penyesuaian', 'stok.lihat_biaya'] },
+  { label: 'Keuangan', icon: '💰', perms: ['bayar.catat', 'bayar.hapus', 'invoice.kelola', 'biaya.kelola', 'kas.kelola', 'dokumen.keuangan'] },
+  { label: 'Laporan', icon: '📑', perms: ['laporan.stok', 'laporan.transaksi', 'laporan.labarugi', 'laporan.piutang'] },
+  { label: 'Sistem', icon: '⚙️', perms: ['users.kelola', 'pengaturan.kelola'] },
+];
+export const permsFor = (role: string) => (Object.keys(PERMS) as Perm[]).filter(p => can(role, p));

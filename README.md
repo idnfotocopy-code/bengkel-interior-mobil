@@ -22,7 +22,7 @@ Buka **http://localhost:3000**. Database `data/bengkel.db` dibuat & diisi data c
 
 ## Akun demo (KHUSUS UJI COBA)
 
-Semua password: `password123`. **Ganti / nonaktifkan sebelum dipakai sungguhan** (menu Pengguna).
+Semua password: `password123`. **Ganti / nonaktifkan sebelum dipakai sungguhan** (menu **Pengguna & Role**).
 
 | Username | Peran | Akses utama |
 |---|---|---|
@@ -45,7 +45,7 @@ Semua password: `password123`. **Ganti / nonaktifkan sebelum dipakai sungguhan**
 | Persediaan | ✓ | ✓ | lihat | ✓ | – |
 | Keuangan | ✓ | ✓ (tanpa kas) | ✓ | – | – |
 | Laporan | ✓ | ✓ (tanpa laba rugi) | ✓ | stok | – |
-| Pengguna | ✓ | – | – | – | – |
+| Pengguna & Role | ✓ | – | – | – | – |
 | Pengaturan | ✓ | ✓ | – | – | – |
 
 ### Matriks aksi Tambah / Edit / Hapus
@@ -73,7 +73,7 @@ Tombol yang tidak diizinkan disembunyikan, dan setiap server action memeriksa iz
 \* Hapus permanen pesanan hanya bila belum ada pembayaran, invoice, atau pemakaian bahan; selain itu gunakan **Batal**.
 \*\* Data yang sudah dipakai transaksi tidak dihapus permanen, melainkan dinonaktifkan (jejak audit tetap utuh). Pemilik aktif terakhir dan akun sendiri tidak bisa dihapus. Mutasi stok yang berasal dari pesanan hanya bisa dikoreksi lewat pembatalan pemakaian bahan.
 
-Matriks lengkap per izin juga tampil di menu **Pengguna**.
+Matriks lengkap per izin juga tampil di menu **Pengguna & Role → Role & hak akses**.
 
 ## Modul
 
@@ -95,7 +95,12 @@ Matriks lengkap per izin juga tampil di menu **Pengguna**.
   - Invoice `INV-YYYY-####`, maksimal 1 invoice aktif per pesanan; terbitkan ulang otomatis membatalkan yang lama.
   - Pengeluaran per kategori, akun kas/bank, dan piutang.
 - **Laporan**: ringkasan laba rugi, stok, status pesanan, piutang, dan unduh PDF.
-- **Pengguna** (pemilik saja): tambah/ubah, reset password, nonaktifkan, matriks akses, dan log aktivitas.
+- **Pengguna & Role** (pemilik saja), menu `/users` dengan 3 tab:
+  - **Daftar pengguna** (`/users`): ringkasan jumlah akun per role, cari/filter role & status, badge role, aktif/nonaktif, login terakhir; **Tambah**, **Edit** (`/users/{id}`: nama, telepon, role, aktif, reset kata sandi + konfirmasi), **Nonaktifkan/Aktifkan**, **Hapus** (akun yang sudah punya riwayat transaksi hanya dinonaktifkan). Halaman edit juga menampilkan menu & aksi apa saja yang dimiliki akun itu.
+  - **Role & hak akses** (`/users/roles`): kartu penjelasan tiap role + daftar akunnya, matriks menu dan matriks aksi per modul (✓/—) dalam bahasa Indonesia; klik role untuk menyorot kolomnya.
+  - **Log aktivitas** (`/users/log`): 200 aktivitas terakhir, filter per pengguna.
+  - Pengaman: tidak bisa menghapus/menonaktifkan/menurunkan role akun sendiri, harus selalu ada minimal 1 pemilik aktif, nonaktif/reset sandi langsung memutus sesi login akun tersebut.
+  - Sumber kebenaran hak akses adalah `lib/rbac.ts` (dipakai sidebar, halaman, tombol, server action, dan route PDF). Membatasi akses seseorang = mengganti role akunnya; berlaku seketika tanpa login ulang.
 - **Pengaturan**: nama usaha, tagline, alamat, telepon, email, kota, rekening, instruksi bayar, syarat penawaran, jatuh tempo, masa berlaku, dan **logo** (PNG/JPG ≤ 2 MB, dipakai di semua PDF).
 
 ## Dokumen & laporan PDF

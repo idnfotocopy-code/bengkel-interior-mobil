@@ -6,20 +6,25 @@ import { insert, update, one, run } from '@/lib/db';
 import { ROLES } from '@/lib/rbac';
 import { s, nowStr, withMsg } from '@/lib/util';
 
+const safeBack = (b: string) => (/^\/users(\/[a-z0-9]+)?$/.test(b) ? b : '/users');
+const lastOwner = (x: any) => x.role === 'pemilik' && x.aktif && one("SELECT COUNT(*) n FROM users WHERE role='pemilik' AND aktif=1").n <= 1;
+
 export async function saveUser(fd: FormData) {
   const u = requirePerm('users.kelola');
   const id = Number(fd.get('id') || 0);
+  const back = safeBack(s(fd, 'back'));
   const role = s(fd, 'role');
-  if (!(ROLES as readonly string[]).includes(role)) redirect(withMsg('/users', 'err', 'Peran tidak valid.'));
+  if (!(ROLES as readonly string[]).includes(role)) redirect(withMsg(back, 'err', 'Peran tidak valid.'));
   const aktif = fd.get('aktif') ? 1 : 0;
-  if (id === u.id && (!aktif || role !== 'pemilik')) redirect(withMsg('/users', 'err', 'Anda tidak dapat menonaktifkan atau menurunkan peran akun sendiri.'));
+  if (id === u.id && (!aktif || role !== 'pemilik')) redirect(withMsg(back, 'err', 'Anda tidak dapat menonaktifkan atau menurunkan peran akun sendiri.'));
   if (id) {
     const old = one('SELECT * FROM users WHERE id=?', id);
-    if (!old) redirect(withMsg('/users', 'err', 'Pengguna tidak ditemukan.'));
-    if (old.role === 'pemilik' && old.aktif && (role !== 'pemilik' || !aktif) && one("SELECT COUNT(*) n FROM users WHERE role='pemilik' AND aktif=1").n <= 1) redirect(withMsg('/users', 'err', 'Harus ada minimal satu pemilik aktif.'));
+    if (!old) redirect(withMsg(back, 'err', 'Pengguna tidak ditemukan.'));
+    if (old.role === 'pemilik' && old.aktif && (role !== 'pemilik' || !aktif) && one("SELECT COUNT(*) n FROM users WHERE role='pemilik' AND aktif=1").n <= 1) redirect(withMsg(back, 'err', 'Harus ada minimal satu pemilik aktif.'));
   }
   const pw = s(fd, 'password');
-  if (pw && pw.length < 8) redirect(withMsg('/users', 'err', 'Kata sandi minimal 8 karakter.'));
+  if (pw && pw !== s(fd, 'password2') && fd.has('password2')) redirect(withMsg(back, 'err', 'Konfirmasi kata sandi tidak sama.'));
+  if (pw && pw.length < 8) redirect(withMsg(back, 'err', 'Kata sandi minimal 8 karakter.'));
   if (id) {
     const data: any = { nama: s(fd, 'nama'), role, aktif, telepon: s(fd, 'telepon') };
     if (pw) data.password_hash = bcrypt.hashSync(pw, 10);
@@ -28,13 +33,13 @@ export async function saveUser(fd: FormData) {
     audit(u, 'UBAH', 'users', id, `${role} aktif=${aktif}${pw ? ' reset-sandi' : ''}`);
   } else {
     const username = s(fd, 'username').toLowerCase();
-    if (!/^[a-z0-9_.]{3,30}$/.test(username)) redirect(withMsg('/users', 'err', 'Username 3–30 karakter (huruf kecil, angka, titik, garis bawah).'));
-    if (one('SELECT id FROM users WHERE username=?', username)) redirect(withMsg('/users', 'err', 'Username sudah dipakai.'));
-    if (!pw) redirect(withMsg('/users', 'err', 'Kata sandi wajib untuk pengguna baru.'));
+    if (!/^[a-z0-9_.]{3,30}$/.test(username)) redirect(withMsg(back, 'err', 'Username 3–30 karakter (huruf kecil, angka, titik, garis bawah).'));
+    if (one('SELECT id FROM users WHERE username=?', username)) redirect(withMsg(back, 'err', 'Username sudah dipakai.'));
+    if (!pw) redirect(withMsg(back, 'err', 'Kata sandi wajib untuk pengguna baru.'));
     const nid = insert('users', { username, nama: s(fd, 'nama') || username, role, aktif: 1, telepon: s(fd, 'telepon'), password_hash: bcrypt.hashSync(pw, 10), created_at: nowStr() });
     audit(u, 'TAMBAH', 'users', nid, `${username} ${role}`);
   }
-  redirect(withMsg('/users', 'ok', 'Pengguna disimpan.'));
+  redirect(withMsg(id ? back : '/users', 'ok', id ? 'Perubahan pengguna disimpan.' : 'Pengguna baru ditambahkan.'));
 }
 
 /** Hapus pengguna. Bila sudah punya jejak transaksi/aktivitas, akun dinonaktifkan agar riwayat tetap utuh. */
@@ -60,4 +65,20 @@ export async function deleteUser(fd: FormData) {
   run('DELETE FROM users WHERE id=?', id);
   audit(u, 'HAPUS', 'users', id, x.username);
   redirect(withMsg('/users', 'ok', `Pengguna ${x.username} dihapus.`));
+}
+
+/** Aktifkan / nonaktifkan akun dengan cepat (akun nonaktif tidak bisa login, sesi langsung diputus). */
+export async function toggleUser(fd: FormData) {
+  const u = requirePerm('users.kelola');
+  const id = Number(fd.get('id'));
+  const back = safeBack(s(fd, 'back'));
+  const x = one('SELECT * FROM users WHERE id=?', id);
+  if (!x) redirect(withMsg(back, 'err', 'Pengguna tidak ditemukan.'));
+  if (id === u.id) redirect(withMsg(back, 'err', 'Anda tidak dapat menonaktifkan akun sendiri.'));
+  if (x.aktif && lastOwner(x)) redirect(withMsg(back, 'err', 'Harus ada minimal satu pemilik aktif.'));
+  const aktif = x.aktif ? 0 : 1;
+  run('UPDATE users SET aktif=? WHERE id=?', aktif, id);
+  if (!aktif) run('DELETE FROM sessions WHERE user_id=?', id);
+  audit(u, aktif ? 'AKTIFKAN' : 'NONAKTIF', 'users', id, x.username);
+  redirect(withMsg(back, 'ok', `Akun ${x.username} ${aktif ? 'diaktifkan' : 'dinonaktifkan'}.`));
 }
