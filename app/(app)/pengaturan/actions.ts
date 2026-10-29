@@ -1,7 +1,9 @@
 'use server';
 import fs from 'fs';
 import { redirect } from 'next/navigation';
-import { requirePerm, audit } from '@/lib/auth';
+import { cookies } from 'next/headers';
+import { requirePerm, audit, COOKIE } from '@/lib/auth';
+import { wipeTransaksi, WIPE_PHRASE } from '@/lib/backup';
 import { setSetting, settings, DEFAULT_SETTINGS } from '@/lib/db';
 import { saveImage, uploadPath } from '@/lib/upload';
 import { s, withMsg } from '@/lib/util';
@@ -30,4 +32,14 @@ export async function resetSettings() {
   for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) if (k !== 'logo') setSetting(k, String(v));
   audit(u, 'RESET', 'settings', '', 'kembali ke bawaan');
   redirect(withMsg('/pengaturan', 'ok', 'Pengaturan dikembalikan ke nilai bawaan.'));
+}
+
+/** Hapus seluruh data transaksi (pemilik saja). Master data tetap; stok bahan di-nol-kan; semua sesi diputus. */
+export async function wipeTransaksiAction(fd: FormData) {
+  const u = requirePerm('data.hapus_transaksi');
+  if (s(fd, 'konfirmasi').toUpperCase() !== WIPE_PHRASE) redirect(withMsg('/pengaturan', 'err', `Ketik ${WIPE_PHRASE} untuk mengonfirmasi penghapusan.`) + '#data');
+  const c = wipeTransaksi();
+  audit(u, 'HAPUS_TRANSAKSI', 'database', '', `${c.pesanan} pesanan, ${c.pembayaran} pembayaran, ${c.invoice} invoice, ${c.pengeluaran} pengeluaran, ${c.mutasi} mutasi stok dihapus; stok bahan di-nol-kan`);
+  cookies().delete(COOKIE);
+  redirect(withMsg('/login', 'ok', `Seluruh data transaksi dihapus (${c.pesanan} pesanan, ${c.pembayaran} pembayaran, ${c.invoice} invoice, ${c.pengeluaran} pengeluaran, ${c.mutasi} mutasi stok). Silakan login ulang.`));
 }

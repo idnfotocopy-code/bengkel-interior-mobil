@@ -4,12 +4,14 @@ import { can } from '@/lib/rbac';
 import { Card, Flash, PageHeader, Field } from '@/components/ui';
 import { saveSettings, resetSettings } from './actions';
 import { ConfirmButton } from '@/components/Confirm';
+import { DataSection } from './DataSection';
 export const dynamic = 'force-dynamic';
 
 export default function Page({ searchParams }: { searchParams: any }) {
   const u = requireUser('pengaturan');
   const st = settings();
   const edit = can(u.role, 'pengaturan.kelola');
+  const dataPerm = { canBackup: can(u.role, 'data.backup'), canRestore: can(u.role, 'data.restore'), canWipe: can(u.role, 'data.hapus_transaksi') };
   return (<div>
     <PageHeader title="Pengaturan usaha" desc="Data ini tampil pada kop seluruh dokumen PDF (penawaran, work order, invoice, kuitansi, serah terima, dan laporan).">{edit ? <span className="badge bg-emerald-100 text-emerald-800">✏️ Mode edit</span> : <span className="badge bg-stone-100 text-stone-600">Hanya lihat</span>}</PageHeader>
     <Flash sp={searchParams} />
@@ -35,5 +37,6 @@ export default function Page({ searchParams }: { searchParams: any }) {
       </div></Card>
       {edit && <div className="flex flex-wrap gap-2"><button className="btn btn-primary px-6">💾 Simpan perubahan</button><ConfirmButton className="btn text-red-600" formAction={resetSettings} msg="Kembalikan semua teks pengaturan ke nilai bawaan? Logo tidak ikut dihapus.">↺ Reset ke bawaan</ConfirmButton></div>}
     </fieldset></form>
+    {(dataPerm.canBackup || dataPerm.canRestore || dataPerm.canWipe) && <DataSection {...dataPerm} />}
   </div>);
 }

@@ -51,6 +51,9 @@ const PERMS = {
   'laporan.piutang': ['pemilik', 'admin', 'keuangan'],
   'users.kelola': ['pemilik'],
   'pengaturan.kelola': ['pemilik', 'admin'],
+  'data.backup': ['pemilik'],                      // unduh backup database
+  'data.restore': ['pemilik'],                     // pulihkan database dari file backup
+  'data.hapus_transaksi': ['pemilik'],             // hapus seluruh data transaksi
 } as const;
 export type Perm = keyof typeof PERMS;
 export const can = (role: string | undefined, p: Perm) => !!role && (PERMS[p] as readonly string[]).includes(role);
@@ -88,11 +91,14 @@ export const PERM_LABEL: Record<Perm, string> = {
   'laporan.piutang': 'Laporan piutang',
   'users.kelola': 'Pengguna: tambah / edit / nonaktifkan / hapus',
   'pengaturan.kelola': 'Pengaturan: edit profil bengkel',
+  'data.backup': 'Data: unduh backup database',
+  'data.restore': 'Data: restore (pulihkan) database dari file backup',
+  'data.hapus_transaksi': 'Data: hapus seluruh data transaksi',
 };
 
 /** Keterangan & warna badge tiap peran (halaman Pengguna & Role). */
 export const ROLE_DESC: Record<Role, string> = {
-  pemilik: 'Akses penuh: semua menu & aksi, kelola pengguna/peran, akun kas, dan laporan laba rugi.',
+  pemilik: 'Akses penuh: semua menu & aksi, kelola pengguna/peran, akun kas, laporan laba rugi, serta backup / restore / hapus data transaksi.',
   admin: 'Operasional harian: pelanggan, kendaraan, pesanan, produksi, persediaan, pembayaran & invoice, pengaturan. Tanpa kelola pengguna, akun kas, dan laba rugi.',
   keuangan: 'Pembayaran, invoice, pengeluaran, akun kas & bank, serta laporan keuangan. Hanya melihat pesanan & stok.',
   gudang: 'Master bahan & pemasok, stok masuk, penyesuaian/opname, pemakaian bahan, dan laporan stok.',
@@ -108,6 +114,6 @@ export const PERM_GROUPS: { label: string; icon: string; perms: Perm[] }[] = [
   { label: 'Persediaan', icon: '📦', perms: ['stok.master', 'stok.masuk', 'stok.penyesuaian', 'stok.lihat_biaya'] },
   { label: 'Keuangan', icon: '💰', perms: ['bayar.catat', 'bayar.hapus', 'invoice.kelola', 'biaya.kelola', 'kas.kelola', 'dokumen.keuangan'] },
   { label: 'Laporan', icon: '📑', perms: ['laporan.stok', 'laporan.transaksi', 'laporan.labarugi', 'laporan.piutang'] },
-  { label: 'Sistem', icon: '⚙️', perms: ['users.kelola', 'pengaturan.kelola'] },
+  { label: 'Sistem', icon: '⚙️', perms: ['users.kelola', 'pengaturan.kelola', 'data.backup', 'data.restore', 'data.hapus_transaksi'] },
 ];
 export const permsFor = (role: string) => (Object.keys(PERMS) as Perm[]).filter(p => can(role, p));
