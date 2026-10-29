@@ -26,12 +26,54 @@ Semua password: `password123`. **Ganti / nonaktifkan sebelum dipakai sungguhan**
 
 | Username | Peran | Akses utama |
 |---|---|---|
-| pemilik | Pemilik | Semua menu, kelola pengguna, batalkan pesanan, laba rugi |
-| admin | Admin | Pelanggan, kendaraan, pesanan, status, invoice/kuitansi, stok masuk, pengaturan |
-| keuangan | Keuangan | Pembayaran, invoice, pengeluaran, kas, piutang, laporan keuangan |
-| gudang | Gudang | Master bahan, stok masuk/keluar/opname, pemakaian bahan, laporan stok |
-| teknisi | Teknisi | Hanya pesanan yang ditugaskan: progres + foto, pemakaian bahan, 3 status produksi |
+| pemilik | Pemilik | Semua menu & aksi, termasuk kelola pengguna dan laba rugi |
+| admin | Admin | Semua operasional (pelanggan, kendaraan, pesanan, produksi, persediaan, pembayaran/invoice/pengeluaran, pengaturan) — tanpa kelola pengguna & kas |
+| keuangan | Keuangan | Pembayaran, invoice, pengeluaran, kas, piutang, laba rugi; lihat semua pesanan & stok (tanpa ubah stok) |
+| gudang | Gudang | Bahan, pemasok, stok masuk/penyesuaian, pemakaian bahan; lihat pesanan terbatas; tanpa pembayaran/keuangan |
+| teknisi | Teknisi | Hanya pesanan yang ditugaskan: progres + foto, pemakaian bahan, status produksi; tanpa harga, pembayaran, pengguna |
 | teknisi2 | Teknisi | Contoh teknisi kedua |
+
+### Matriks hak akses menu
+
+| Menu | Pemilik | Admin | Keuangan | Gudang | Teknisi |
+|---|:-:|:-:|:-:|:-:|:-:|
+| Dashboard | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Pelanggan | ✓ | ✓ | – | – | – |
+| Kendaraan | ✓ | ✓ | – | – | lihat |
+| Pesanan / WO | ✓ | ✓ | lihat semua | lihat | hanya tugasnya |
+| Produksi | ✓ | ✓ | – | – | ✓ |
+| Persediaan | ✓ | ✓ | lihat | ✓ | – |
+| Keuangan | ✓ | ✓ (tanpa kas) | ✓ | – | – |
+| Laporan | ✓ | ✓ (tanpa laba rugi) | ✓ | stok | – |
+| Pengguna | ✓ | – | – | – | – |
+| Pengaturan | ✓ | ✓ | – | – | – |
+
+### Matriks aksi Tambah / Edit / Hapus
+
+Tombol yang tidak diizinkan disembunyikan, dan setiap server action memeriksa izin lagi (`lib/rbac.ts` → `requirePerm`). Hapus selalu minta konfirmasi.
+
+| Aksi | Pemilik | Admin | Keuangan | Gudang | Teknisi |
+|---|:-:|:-:|:-:|:-:|:-:|
+| Pelanggan: tambah/edit/hapus | ✓ | ✓ | – | – | – |
+| Kendaraan: tambah/edit/hapus | ✓ | ✓ | – | – | – |
+| Pesanan & item: tambah/edit/hapus, ubah harga | ✓ | ✓ | – | – | – |
+| Pesanan: batalkan (wajib alasan) / hapus permanen* | ✓ | ✓ | – | – | – |
+| Progres produksi: tambah | ✓ | ✓ | – | – | ✓ (tugasnya) |
+| Progres produksi: edit/hapus | ✓ semua | ✓ semua | – | – | ✓ catatan sendiri |
+| Pemakaian bahan pada pesanan | ✓ | ✓ | – | ✓ | ✓ |
+| Bahan & pemasok: tambah/edit/hapus** | ✓ | ✓ | – | ✓ | – |
+| Mutasi stok manual (masuk/penyesuaian): tambah/edit/hapus | ✓ | ✓ | – | ✓ | – |
+| Pembayaran: tambah/edit/hapus | ✓ | ✓ | ✓ | – | – |
+| Invoice: buat/edit/batal | ✓ | ✓ | ✓ | – | – |
+| Pengeluaran: tambah/edit/hapus | ✓ | ✓ | ✓ | – | – |
+| Akun kas: tambah/edit/hapus** | ✓ | – | ✓ | – | – |
+| Pengguna: tambah/edit/hapus** | ✓ | – | – | – | – |
+| Pengaturan: simpan/reset | ✓ | ✓ | – | – | – |
+
+\* Hapus permanen pesanan hanya bila belum ada pembayaran, invoice, atau pemakaian bahan; selain itu gunakan **Batal**.
+\*\* Data yang sudah dipakai transaksi tidak dihapus permanen, melainkan dinonaktifkan (jejak audit tetap utuh). Pemilik aktif terakhir dan akun sendiri tidak bisa dihapus. Mutasi stok yang berasal dari pesanan hanya bisa dikoreksi lewat pembatalan pemakaian bahan.
+
+Matriks lengkap per izin juga tampil di menu **Pengguna**.
 
 ## Modul
 

@@ -34,11 +34,11 @@ export default function Page({ params, searchParams }: { params: { id: string };
         </tbody></table></TableWrap> : <Empty />}</Card>
         {fotos.length > 0 && <Card title="Foto progres"><div className="grid grid-cols-2 md:grid-cols-4 gap-3">{fotos.map((f: any, i: number) => <figure key={i}><img src={uploadUrl(f.foto)} alt="" className="rounded h-28 w-full object-cover" /><figcaption className="text-[11px] text-slate-500 mt-1">{f.nomor} · {f.catatan}</figcaption></figure>)}</div></Card>}
       </div>
-      <Card title="Data kendaraan">
+      <Card id="edit" title={edit ? '✏️ Edit data kendaraan' : 'Data kendaraan'}>
         <form action={saveVehicle} className="space-y-3">
           <input type="hidden" name="id" value={v.id} />
           <VehicleForm v={v} customers={customers} disabled={!edit} />
-          {edit && <div className="flex gap-2"><button className="btn btn-primary flex-1">Simpan</button><ConfirmButton className="btn btn-danger" formAction={deleteVehicle} msg={`Hapus kendaraan ${v.nopol}?`}>Hapus</ConfirmButton></div>}
+          {edit && <div className="flex gap-2"><button className="btn btn-primary flex-1">Simpan perubahan</button><ConfirmButton className="btn btn-danger" formAction={deleteVehicle} msg={`Hapus kendaraan ${v.nopol}?`}>🗑 Hapus</ConfirmButton></div>}
         </form>
       </Card>
     </div>

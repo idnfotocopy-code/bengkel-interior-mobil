@@ -2,7 +2,8 @@ import { requireUser } from '@/lib/auth';
 import { settings } from '@/lib/db';
 import { can } from '@/lib/rbac';
 import { Card, Flash, PageHeader, Field } from '@/components/ui';
-import { saveSettings } from './actions';
+import { saveSettings, resetSettings } from './actions';
+import { ConfirmButton } from '@/components/Confirm';
 export const dynamic = 'force-dynamic';
 
 export default function Page({ searchParams }: { searchParams: any }) {
@@ -10,7 +11,7 @@ export default function Page({ searchParams }: { searchParams: any }) {
   const st = settings();
   const edit = can(u.role, 'pengaturan.kelola');
   return (<div>
-    <PageHeader title="Pengaturan usaha" desc="Data ini tampil pada kop seluruh dokumen PDF (penawaran, work order, invoice, kuitansi, serah terima, dan laporan)." />
+    <PageHeader title="Pengaturan usaha" desc="Data ini tampil pada kop seluruh dokumen PDF (penawaran, work order, invoice, kuitansi, serah terima, dan laporan).">{edit ? <span className="badge bg-emerald-100 text-emerald-800">✏️ Mode edit</span> : <span className="badge bg-stone-100 text-stone-600">Hanya lihat</span>}</PageHeader>
     <Flash sp={searchParams} />
     <form action={saveSettings} className="space-y-5 max-w-4xl"><fieldset disabled={!edit} className="space-y-5">
       <Card title="Identitas bengkel"><div className="grid-form">
@@ -32,7 +33,7 @@ export default function Page({ searchParams }: { searchParams: any }) {
         <Field label="Instruksi pembayaran (invoice)" className="sm:col-span-2"><textarea name="instruksi_bayar" defaultValue={st.instruksi_bayar} rows={2} className="input" /></Field>
         <Field label="Syarat & ketentuan (surat penawaran)" className="sm:col-span-2"><textarea name="syarat_penawaran" defaultValue={st.syarat_penawaran} rows={4} className="input" /></Field>
       </div></Card>
-      {edit && <button className="btn btn-primary px-6">Simpan pengaturan</button>}
+      {edit && <div className="flex flex-wrap gap-2"><button className="btn btn-primary px-6">💾 Simpan perubahan</button><ConfirmButton className="btn text-red-600" formAction={resetSettings} msg="Kembalikan semua teks pengaturan ke nilai bawaan? Logo tidak ikut dihapus.">↺ Reset ke bawaan</ConfirmButton></div>}
     </fieldset></form>
   </div>);
 }

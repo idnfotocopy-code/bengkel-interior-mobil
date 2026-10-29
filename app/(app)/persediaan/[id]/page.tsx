@@ -6,7 +6,7 @@ import { can } from '@/lib/rbac';
 import { rp, num, tgl, today } from '@/lib/util';
 import { Card, Flash, PageHeader, Empty, TableWrap, Field, Badge } from '@/components/ui';
 import { ConfirmButton } from '@/components/Confirm';
-import { saveMaterial, toggleMaterial, stockMove } from '../actions';
+import { saveMaterial, toggleMaterial, stockMove, deleteMaterial } from '../actions';
 export const dynamic = 'force-dynamic';
 
 export default function Page({ params, searchParams }: { params: { id: string }; searchParams: any }) {
@@ -34,18 +34,19 @@ export default function Page({ params, searchParams }: { params: { id: string };
           <Field label={`Stok fisik hasil hitung (${m.satuan})`}><input name="qty" type="number" step="0.01" defaultValue={m.stok} className="input" required /></Field>
           <Field label="Alasan"><input name="alasan" className="input" required defaultValue="Stok opname" /></Field>
           <button className="btn btn-primary w-full">Simpan penyesuaian</button></form></Card>}
-        <Card title="Data bahan"><form action={saveMaterial} className="space-y-2">
+        <Card id="edit" title={can(u.role, 'stok.master') ? '✏️ Edit data bahan' : 'Data bahan'}><form action={saveMaterial} className="space-y-2">
           <input type="hidden" name="id" value={m.id} />
           <fieldset disabled={!can(u.role, 'stok.master')} className="space-y-2">
-            <div className="grid grid-cols-2 gap-2"><Field label="Kode"><input name="kode" defaultValue={m.kode} className="input" /></Field><Field label="Satuan"><input name="satuan" defaultValue={m.satuan} className="input" /></Field></div>
-            <Field label="Nama"><input name="nama" defaultValue={m.nama} className="input" /></Field>
-            <div className="grid grid-cols-2 gap-2"><Field label="Minimum"><input name="minimum" type="number" step="0.01" defaultValue={m.minimum} className="input" /></Field>
-              {cost ? <Field label="Harga beli"><input name="harga_beli" type="number" defaultValue={m.harga_beli} className="input" /></Field> : <input type="hidden" name="harga_beli" value={m.harga_beli} />}</div>
+            <div className="grid grid-cols-2 gap-2"><Field label="Kode"><input name="kode" defaultValue={m.kode} className="input" required /></Field><Field label="Satuan"><input name="satuan" defaultValue={m.satuan} className="input" /></Field></div>
+            <Field label="Nama"><input name="nama" defaultValue={m.nama} className="input" required /></Field>
+            <div className="grid grid-cols-2 gap-2"><Field label="Minimum"><input name="minimum" type="number" step="any" defaultValue={m.minimum} className="input" /></Field>
+              {cost ? <Field label="Harga beli"><input name="harga_beli" type="number" step="any" defaultValue={m.harga_beli} className="input" /></Field> : <input type="hidden" name="harga_beli" value={m.harga_beli} />}</div>
             <Field label="Pemasok"><select name="supplier_id" defaultValue={m.supplier_id || ''} className="input"><option value="">—</option>{suppliers.map((s: any) => <option key={s.id} value={s.id}>{s.nama}</option>)}</select></Field>
             <Field label="Lokasi"><input name="lokasi" defaultValue={m.lokasi} className="input" /></Field>
             {can(u.role, 'stok.master') && <button className="btn btn-primary w-full">Simpan</button>}
           </fieldset></form>
           {can(u.role, 'stok.master') && <form action={toggleMaterial} className="mt-3"><input type="hidden" name="id" value={m.id} /><ConfirmButton className="btn w-full" msg={m.aktif ? 'Nonaktifkan bahan ini? Bahan tidak akan muncul di pilihan pemakaian.' : 'Aktifkan kembali bahan ini?'}>{m.aktif ? 'Nonaktifkan bahan' : 'Aktifkan bahan'}</ConfirmButton></form>}
+          {can(u.role, 'stok.master') && <form action={deleteMaterial} className="mt-2"><input type="hidden" name="id" value={m.id} /><ConfirmButton className="btn btn-danger w-full" msg={`Hapus bahan ${m.kode}? Bila sudah punya riwayat stok, bahan hanya dinonaktifkan.`}>🗑 Hapus bahan</ConfirmButton></form>}
         </Card>
       </div>
     </div>

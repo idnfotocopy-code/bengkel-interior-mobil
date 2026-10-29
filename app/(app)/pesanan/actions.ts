@@ -64,6 +64,43 @@ export async function deleteItem(fd: FormData) {
   go(id, 'Item dihapus.');
 }
 
+export async function updateItem(fd: FormData) {
+  const u = requirePerm('pesanan.harga');
+  const id = Number(fd.get('wo_id')), item = Number(fd.get('item_id'));
+  const it = one('SELECT * FROM work_order_items WHERE id=? AND wo_id=?', item, id);
+  if (!it) go(id, 'Item tidak ditemukan.', true);
+  const desc = s(fd, 'deskripsi');
+  if (!desc) go(id, 'Deskripsi item wajib diisi.', true);
+  const data = { jenis: s(fd, 'jenis') === 'barang' ? 'barang' : 'jasa', deskripsi: desc, qty: n(fd, 'qty') || 1, satuan: s(fd, 'satuan') || 'paket', harga: n(fd, 'harga') };
+  update('work_order_items', item, data);
+  syncInvoiceStatus(id);
+  audit(u, 'UBAH_ITEM', 'work_orders', id, `${it.deskripsi} → ${desc} ${data.qty} × ${data.harga}`);
+  insert('wo_status_history', { wo_id: id, dari: null, ke: one('SELECT status FROM work_orders WHERE id=?', id).status, catatan: `Item diubah: ${desc} (${data.qty} × ${data.harga})`, user_id: u.id, at: nowStr() });
+  go(id, 'Item diperbarui. Bila invoice sudah terbit, terbitkan ulang agar total invoice ikut berubah.');
+}
+
+/** Hapus permanen pesanan yang belum punya transaksi (pembayaran, invoice, pemakaian bahan). Selain itu gunakan Batalkan. */
+export async function deleteWO(fd: FormData) {
+  const u = requirePerm('pesanan.hapus');
+  const id = Number(fd.get('wo_id'));
+  const wo = one('SELECT * FROM work_orders WHERE id=?', id);
+  if (!wo) redirect(withMsg('/pesanan', 'err', 'Pesanan tidak ditemukan.'));
+  const c = one(`SELECT (SELECT COUNT(*) FROM payments WHERE wo_id=?) bayar, (SELECT COUNT(*) FROM invoices WHERE wo_id=?) inv, (SELECT COUNT(*) FROM material_usage WHERE wo_id=?) bahan, (SELECT COUNT(*) FROM stock_movements WHERE wo_id=?) mutasi`, id, id, id, id);
+  if (c.bayar || c.inv || c.bahan || c.mutasi) {
+    const back = s(fd, 'back') || `/pesanan/${id}`;
+    redirect(withMsg(back, 'err', `Pesanan ${wo.nomor} sudah punya ${[c.bayar && 'pembayaran', c.inv && 'invoice', (c.bahan || c.mutasi) && 'pemakaian bahan'].filter(Boolean).join(', ')} sehingga tidak bisa dihapus permanen. Gunakan "Batalkan pesanan".`));
+  }
+  tx(() => {
+    run('DELETE FROM work_order_items WHERE wo_id=?', id);
+    run('DELETE FROM wo_status_history WHERE wo_id=?', id);
+    run('DELETE FROM work_progress WHERE wo_id=?', id);
+    run('UPDATE expenses SET wo_id=NULL WHERE wo_id=?', id);
+    run('DELETE FROM work_orders WHERE id=?', id);
+  });
+  audit(u, 'HAPUS', 'work_orders', id, wo.nomor);
+  redirect(withMsg('/pesanan', 'ok', `Pesanan ${wo.nomor} dihapus.`));
+}
+
 export async function changeStatus(fd: FormData) {
   const u = requireUser();
   const id = Number(fd.get('wo_id'));
@@ -86,13 +123,16 @@ export async function cancelWO(fd: FormData) {
   const u = requirePerm('pesanan.batal');
   const id = Number(fd.get('wo_id'));
   const wo = one('SELECT * FROM work_orders WHERE id=?', id);
-  const alasan = s(fd, 'alasan') || 'Dibatalkan';
+  if (!wo) redirect(withMsg('/pesanan', 'err', 'Pesanan tidak ditemukan.'));
+  const alasan = s(fd, 'alasan');
+  if (!alasan) redirect(withMsg(s(fd, 'back') || `/pesanan/${id}`, 'err', 'Alasan pembatalan wajib diisi.'));
   tx(() => {
     run('UPDATE work_orders SET status=?, updated_at=? WHERE id=?', WO_CANCELLED, nowStr(), id);
     insert('wo_status_history', { wo_id: id, dari: wo.status, ke: WO_CANCELLED, catatan: alasan, user_id: u.id, at: nowStr() });
     run("UPDATE invoices SET status='Batal' WHERE wo_id=?", id);
   });
   audit(u, 'BATAL', 'work_orders', id, alasan);
+  if (s(fd, 'back') === '/pesanan') redirect(withMsg('/pesanan', 'ok', `Pesanan ${wo.nomor} dibatalkan.`));
   go(id, 'Pesanan dibatalkan. Pemakaian bahan & pembayaran tetap tercatat untuk jejak audit.');
 }
 

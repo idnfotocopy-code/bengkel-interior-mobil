@@ -43,7 +43,7 @@ export default function Page({ params, searchParams }: { params: { id: string };
           </tbody></table></TableWrap> : <Empty>Belum ada pembayaran.</Empty>}
         </Card>
       </div>
-      <Card title="Profil pelanggan">
+      <Card id="edit" title={edit ? '✏️ Edit profil pelanggan' : 'Profil pelanggan'}>
         <form action={saveCustomer} className="space-y-3">
           <input type="hidden" name="id" value={c.id} />
           <Field label="Nama *"><input name="nama" defaultValue={c.nama} className="input" required disabled={!edit} /></Field>
@@ -52,7 +52,7 @@ export default function Page({ params, searchParams }: { params: { id: string };
           <Field label="Alamat"><textarea name="alamat" defaultValue={c.alamat} className="input" rows={2} disabled={!edit} /></Field>
           <Field label="Tanggal pertama transaksi"><input type="date" name="tgl_pertama" defaultValue={c.tgl_pertama} className="input" disabled={!edit} /></Field>
           <Field label="Catatan preferensi / komplain"><textarea name="catatan" defaultValue={c.catatan} className="input" rows={3} disabled={!edit} /></Field>
-          {edit && <div className="flex gap-2"><button className="btn btn-primary flex-1">Simpan</button><ConfirmButton className="btn btn-danger" formAction={deleteCustomer} msg={`Hapus pelanggan ${c.nama}? Tindakan ini tidak bisa dibatalkan.`}>Hapus</ConfirmButton></div>}
+          {edit && <div className="flex gap-2"><button className="btn btn-primary flex-1">Simpan perubahan</button><ConfirmButton className="btn btn-danger" formAction={deleteCustomer} msg={`Hapus pelanggan ${c.nama}? Tindakan ini tidak bisa dibatalkan.`}>🗑 Hapus</ConfirmButton></div>}
         </form>
       </Card>
     </div>

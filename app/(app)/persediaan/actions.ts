@@ -24,14 +24,40 @@ export async function saveMaterial(fd: FormData) {
     }
   });
   audit(u, id ? 'UBAH' : 'TAMBAH', 'materials', newId, kode);
-  redirect(withMsg(`/persediaan/${newId}`, 'ok', 'Data bahan disimpan.'));
+  if (id) redirect(withMsg(s(fd, 'back') || `/persediaan/${id}`, 'ok', `Data bahan ${kode} diperbarui.`));
+  redirect(withMsg(`/persediaan?hl=${newId}`, 'ok', `Bahan ${kode} — ${data.nama} ditambahkan ke daftar bahan.`));
+}
+/** Hapus bahan: permanen bila belum pernah ada mutasi/pemakaian; bila sudah, dinonaktifkan agar riwayat tetap utuh. */
+export async function deleteMaterial(fd: FormData) {
+  const u = requirePerm('stok.master');
+  const id = Number(fd.get('id'));
+  const m = one('SELECT * FROM materials WHERE id=?', id);
+  if (!m) redirect(withMsg('/persediaan', 'err', 'Bahan tidak ditemukan.'));
+  const used = one('SELECT (SELECT COUNT(*) FROM stock_movements WHERE material_id=?) + (SELECT COUNT(*) FROM material_usage WHERE material_id=?) n', id, id).n;
+  if (used) {
+    run('UPDATE materials SET aktif=0 WHERE id=?', id);
+    audit(u, 'NONAKTIF', 'materials', id, `${m.kode} (punya riwayat mutasi)`);
+    redirect(withMsg('/persediaan', 'ok', `Bahan ${m.kode} sudah punya riwayat stok, jadi dinonaktifkan (tidak dihapus permanen).`));
+  }
+  run('DELETE FROM materials WHERE id=?', id);
+  audit(u, 'HAPUS', 'materials', id, `${m.kode} ${m.nama}`);
+  redirect(withMsg('/persediaan', 'ok', `Bahan ${m.kode} dihapus.`));
+}
+export async function deleteSupplier(fd: FormData) {
+  const u = requirePerm('stok.master');
+  const id = Number(fd.get('id'));
+  const sp = one('SELECT * FROM suppliers WHERE id=?', id);
+  run('UPDATE materials SET supplier_id=NULL WHERE supplier_id=?', id);
+  run('DELETE FROM suppliers WHERE id=?', id);
+  audit(u, 'HAPUS', 'suppliers', id, sp?.nama || '');
+  redirect(withMsg('/persediaan?tab=supplier', 'ok', 'Pemasok dihapus.'));
 }
 export async function toggleMaterial(fd: FormData) {
   const u = requirePerm('stok.master');
   const id = Number(fd.get('id'));
   run('UPDATE materials SET aktif=1-aktif WHERE id=?', id);
   audit(u, 'AKTIF_TOGGLE', 'materials', id);
-  redirect(withMsg(`/persediaan/${id}`, 'ok', 'Status bahan diperbarui.'));
+  redirect(withMsg(s(fd, 'back') || `/persediaan/${id}`, 'ok', 'Status bahan diperbarui.'));
 }
 export async function saveSupplier(fd: FormData) {
   const u = requirePerm('stok.master');
@@ -68,4 +94,53 @@ export async function stockMove(fd: FormData) {
     });
   } catch (e: any) { redirect(withMsg(back, 'err', e.message)); }
   redirect(withMsg(back, 'ok', tipe === 'masuk' ? 'Stok masuk dicatat.' : tipe === 'keluar' ? 'Barang keluar dicatat.' : 'Penyesuaian stok dicatat.'));
+}
+
+/** Mutasi manual (masuk/keluar/penyesuaian tanpa pesanan) boleh diedit/dihapus; stok ikut dikoreksi. */
+function manualMovement(id: number, back: string) {
+  const mv = one('SELECT * FROM stock_movements WHERE id=?', id);
+  if (!mv) redirect(withMsg(back, 'err', 'Mutasi tidak ditemukan.'));
+  if (mv.wo_id || !['masuk', 'keluar', 'penyesuaian'].includes(mv.tipe) || one('SELECT id FROM material_usage WHERE movement_id=?', id))
+    redirect(withMsg(back, 'err', 'Mutasi dari pemakaian pesanan hanya bisa dibatalkan dari halaman pesanan.'));
+  return mv;
+}
+
+export async function updateMovement(fd: FormData) {
+  const id = Number(fd.get('id'));
+  const back = s(fd, 'back') || '/persediaan?tab=mutasi';
+  const mv = manualMovement(id, back);
+  const u = requirePerm(mv.tipe === 'masuk' ? 'stok.masuk' : 'stok.penyesuaian');
+  const q = n(fd, 'qty');
+  if (!q) redirect(withMsg(back, 'err', 'Jumlah wajib diisi.'));
+  const signed = mv.tipe === 'masuk' ? Math.abs(q) : mv.tipe === 'keluar' ? -Math.abs(q) : q;
+  const alasan = s(fd, 'alasan');
+  if (mv.tipe !== 'masuk' && !alasan) redirect(withMsg(back, 'err', 'Alasan wajib diisi.'));
+  try {
+    tx(() => {
+      const m = one('SELECT * FROM materials WHERE id=?', mv.material_id);
+      const delta = signed - mv.qty;
+      if (m.stok + delta < -1e-9) throw new Error(`Perubahan membuat stok ${m.nama} minus (stok sekarang ${m.stok} ${m.satuan}).`);
+      update('stock_movements', id, { qty: signed, harga: mv.tipe === 'masuk' ? n(fd, 'harga') : mv.harga, alasan, tanggal: s(fd, 'tanggal') || mv.tanggal });
+      run('UPDATE materials SET stok=stok+? WHERE id=?', delta, mv.material_id);
+    });
+  } catch (e: any) { redirect(withMsg(back, 'err', e.message)); }
+  audit(u, 'UBAH_MUTASI', 'materials', mv.material_id, `mv#${id} ${mv.qty} → ${signed}`);
+  redirect(withMsg(back, 'ok', 'Mutasi stok diperbarui; stok bahan ikut dikoreksi.'));
+}
+
+export async function deleteMovement(fd: FormData) {
+  const id = Number(fd.get('id'));
+  const back = s(fd, 'back') || '/persediaan?tab=mutasi';
+  const mv = manualMovement(id, back);
+  const u = requirePerm(mv.tipe === 'masuk' ? 'stok.masuk' : 'stok.penyesuaian');
+  try {
+    tx(() => {
+      const m = one('SELECT * FROM materials WHERE id=?', mv.material_id);
+      if (m.stok - mv.qty < -1e-9) throw new Error(`Menghapus mutasi ini membuat stok ${m.nama} minus (stok sekarang ${m.stok} ${m.satuan}).`);
+      run('DELETE FROM stock_movements WHERE id=?', id);
+      run('UPDATE materials SET stok=stok-? WHERE id=?', mv.qty, mv.material_id);
+    });
+  } catch (e: any) { redirect(withMsg(back, 'err', e.message)); }
+  audit(u, 'HAPUS_MUTASI', 'materials', mv.material_id, JSON.stringify(mv));
+  redirect(withMsg(back, 'ok', 'Mutasi stok dihapus; stok bahan dikembalikan. (Pengeluaran pembelian terkait, bila ada, hapus dari menu Keuangan.)'));
 }

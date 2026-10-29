@@ -22,7 +22,8 @@ export async function saveVehicle(fd: FormData) {
 export async function deleteVehicle(fd: FormData) {
   const u = requirePerm('kendaraan.kelola');
   const id = Number(fd.get('id'));
-  if (one('SELECT COUNT(*) n FROM work_orders WHERE vehicle_id=?', id).n) redirect(`/kendaraan/${id}?err=${q('Kendaraan memiliki riwayat pesanan sehingga tidak dapat dihapus.')}`);
+  const back = s(fd, 'back') === '/kendaraan' ? '/kendaraan' : `/kendaraan/${id}`;
+  if (one('SELECT COUNT(*) n FROM work_orders WHERE vehicle_id=?', id).n) redirect(`${back}?err=${q('Kendaraan memiliki riwayat pesanan sehingga tidak dapat dihapus.')}`);
   run('DELETE FROM vehicles WHERE id=?', id);
   audit(u, 'HAPUS', 'vehicles', id);
   redirect(`/kendaraan?ok=${q('Kendaraan dihapus.')}`);

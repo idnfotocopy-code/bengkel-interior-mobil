@@ -29,8 +29,8 @@ export function Stat({ label, value, sub, color = 'brand', href }: { label: stri
     {sub && <div className="text-xs text-slate-500 mt-1">{sub}</div>}</div>);
   return href ? <Link href={href}>{inner}</Link> : inner;
 }
-export function Card({ title, actions, children, className = '', pad = true }: { title?: React.ReactNode; actions?: React.ReactNode; children: React.ReactNode; className?: string; pad?: boolean }) {
-  return (<div className={`card ${className}`}>{title && <div className="card-h"><span>{title}</span><div className="flex flex-wrap gap-2">{actions}</div></div>}<div className={pad ? 'card-b' : ''}>{children}</div></div>);
+export function Card({ title, actions, children, className = '', pad = true, id }: { title?: React.ReactNode; actions?: React.ReactNode; children: React.ReactNode; className?: string; pad?: boolean; id?: string }) {
+  return (<div id={id} className={`card scroll-mt-20 ${className}`}>{title && <div className="card-h"><span>{title}</span><div className="flex flex-wrap gap-2">{actions}</div></div>}<div className={pad ? 'card-b' : ''}>{children}</div></div>);
 }
 export function Empty({ children = 'Belum ada data.' }: { children?: React.ReactNode }) { return <div className="text-sm text-slate-400 italic py-6 text-center">{children}</div>; }
 export function Tabs({ items, active }: { items: { key: string; label: string; href: string }[]; active: string }) {

@@ -9,7 +9,8 @@ import { rp, num, tgl, tglJam, today, addDays } from '@/lib/util';
 import { uploadUrl } from '@/lib/upload';
 import { Card, Flash, PageHeader, Empty, TableWrap, StatusBadge, InvBadge, Field } from '@/components/ui';
 import { ConfirmButton } from '@/components/Confirm';
-import { updateWO, addItem, deleteItem, changeStatus, cancelWO, useMaterial, cancelUsage } from '../actions';
+import { updateWO, addItem, updateItem, deleteItem, changeStatus, cancelWO, deleteWO, useMaterial, cancelUsage } from '../actions';
+import { ProgressActions } from '@/components/ProgressActions';
 import { addPayment, deletePayment, createInvoice } from '../../keuangan/actions';
 export const dynamic = 'force-dynamic';
 
@@ -62,7 +63,14 @@ export default function Page({ params, searchParams }: { params: { id: string };
           <TableWrap><table className="tbl"><thead><tr><th>Jenis</th><th>Deskripsi</th><th className="num">Qty</th>{seeMoney && <><th className="num">Harga</th><th className="num">Jumlah</th></>}{harga && !batal && <th></th>}</tr></thead><tbody>
             {items.map((it: any) => <tr key={it.id}><td className="capitalize">{it.jenis}</td><td>{it.deskripsi}</td><td className="num">{num(it.qty)} {it.satuan}</td>
               {seeMoney && <><td className="num">{rp(it.harga)}</td><td className="num">{rp(it.qty * it.harga)}</td></>}
-              {harga && !batal && <td><form action={deleteItem}><input type="hidden" name="wo_id" value={w.id} /><input type="hidden" name="item_id" value={it.id} /><ConfirmButton msg={`Hapus item "${it.deskripsi}"?`} className="btn btn-sm text-red-600">Hapus</ConfirmButton></form></td>}</tr>)}
+              {harga && !batal && <td className="whitespace-nowrap"><details className="inline-block align-top"><summary className="btn btn-sm list-none cursor-pointer">✏️ Edit</summary>
+                <form action={updateItem} className="mt-2 grid gap-1 w-72 rounded border bg-white p-2 shadow-lg">
+                  <input type="hidden" name="wo_id" value={w.id} /><input type="hidden" name="item_id" value={it.id} />
+                  <select name="jenis" defaultValue={it.jenis} className="input"><option value="jasa">Jasa</option><option value="barang">Barang</option></select>
+                  <input name="deskripsi" defaultValue={it.deskripsi} className="input" required />
+                  <div className="grid grid-cols-3 gap-1"><input name="qty" type="number" step="any" min={0} defaultValue={it.qty} className="input" /><input name="satuan" defaultValue={it.satuan} className="input" /><input name="harga" type="number" step="any" min={0} defaultValue={it.harga} className="input" /></div>
+                  <button className="btn btn-primary btn-sm">Simpan item</button>
+                </form></details> <form action={deleteItem} className="inline"><input type="hidden" name="wo_id" value={w.id} /><input type="hidden" name="item_id" value={it.id} /><ConfirmButton msg={`Hapus item "${it.deskripsi}"?`} className="btn btn-sm text-red-600">🗑 Hapus</ConfirmButton></form></td>}</tr>)}
             {!items.length && <tr><td colSpan={6}><Empty>Belum ada item.</Empty></td></tr>}
             {seeMoney && <>
               <tr><td colSpan={4} className="num">Subtotal (jasa {rp(sm.jasa)} + barang {rp(sm.barang)})</td><td className="num">{rp(sm.subtotal)}</td></tr>
@@ -76,7 +84,7 @@ export default function Page({ params, searchParams }: { params: { id: string };
             <input name="deskripsi" placeholder="Deskripsi item" className="input sm:col-span-4" required />
             <input name="qty" type="number" step="0.01" defaultValue={1} className="input sm:col-span-1" />
             <input name="satuan" defaultValue="paket" className="input sm:col-span-2" />
-            <input name="harga" type="number" min={0} placeholder="Harga" className="input sm:col-span-2" required />
+            <input name="harga" type="number" step="any" min={0} placeholder="Harga" className="input sm:col-span-2" required />
             <button className="btn btn-primary sm:col-span-1">+</button>
           </form>}
         </Card>
@@ -108,7 +116,7 @@ export default function Page({ params, searchParams }: { params: { id: string };
           {can(u.role, 'bayar.catat') && !batal && <form action={addPayment} className="grid gap-2 sm:grid-cols-12 p-4 border-t bg-stone-50">
             <input type="hidden" name="wo_id" value={w.id} />
             <select name="jenis" className="input sm:col-span-2" defaultValue={sm.paid > 0 ? 'Pelunasan' : 'DP'}>{PAYMENT_TYPES.map(t => <option key={t}>{t}</option>)}</select>
-            <input name="jumlah" type="number" min={1} placeholder="Jumlah" defaultValue={sm.sisa > 0 ? Math.round(sm.paid > 0 ? sm.sisa : sm.sisa / 2) : ''} className="input sm:col-span-2" required />
+            <input name="jumlah" type="number" step="any" min={1} placeholder="Jumlah" defaultValue={sm.sisa > 0 ? Math.round(sm.paid > 0 ? sm.sisa : sm.sisa / 2) : ''} className="input sm:col-span-2" required />
             <input name="tanggal" type="date" defaultValue={today()} className="input sm:col-span-2" />
             <select name="metode" className="input sm:col-span-2">{PAYMENT_METHODS.map(m => <option key={m}>{m}</option>)}</select>
             <select name="cash_account_id" className="input sm:col-span-2">{accounts.map((a: any) => <option key={a.id} value={a.id}>{a.nama}</option>)}</select>
@@ -119,7 +127,7 @@ export default function Page({ params, searchParams }: { params: { id: string };
         <Card title="Progres pekerjaan" actions={can(u.role, 'progres.tulis') && <Link href={`/produksi?wo=${w.id}`} className="btn btn-sm">+ Catat progres</Link>}>
           {prog.length ? <ul className="space-y-3">{prog.map((p: any) => <li key={p.id} className="flex gap-3">
             {p.foto && <a href={uploadUrl(p.foto)} target="_blank"><img src={uploadUrl(p.foto)} alt="" className="w-20 h-16 object-cover rounded" /></a>}
-            <div className="text-sm"><div>{p.catatan} {p.persen != null && <b className="text-brand-700">({p.persen}%)</b>}</div><div className="text-xs text-slate-500">{tglJam(p.at)} · {p.oleh}</div></div></li>)}</ul> : <Empty>Belum ada catatan progres.</Empty>}
+            <div className="text-sm"><div>{p.catatan} {p.persen != null && <b className="text-brand-700">({p.persen}%)</b>}</div><div className="text-xs text-slate-500">{tglJam(p.at)} · {p.oleh}</div><ProgressActions u={u} p={p} back={`/pesanan/${w.id}`} /></div></li>)}</ul> : <Empty>Belum ada catatan progres.</Empty>}
         </Card>
       </div>
 
@@ -132,7 +140,8 @@ export default function Page({ params, searchParams }: { params: { id: string };
             <input name="catatan" className="input" placeholder="Catatan perubahan (opsional)" />
             <button className="btn btn-primary w-full">Ubah status</button>
           </form>}
-          {can(u.role, 'pesanan.batal') && !batal && w.status !== 'Selesai' && <form action={cancelWO} className="mt-3 pt-3 border-t space-y-2"><input type="hidden" name="wo_id" value={w.id} /><input name="alasan" className="input" placeholder="Alasan pembatalan" /><ConfirmButton className="btn btn-danger w-full" msg={`Batalkan pesanan ${w.nomor}? Invoice terkait ikut dibatalkan.`}>Batalkan pesanan</ConfirmButton></form>}
+          {can(u.role, 'pesanan.batal') && !batal && w.status !== 'Selesai' && <form action={cancelWO} className="mt-3 pt-3 border-t space-y-2"><input type="hidden" name="wo_id" value={w.id} /><input name="alasan" className="input" placeholder="Alasan pembatalan *" required /><ConfirmButton className="btn btn-danger w-full" msg={`Batalkan pesanan ${w.nomor}? Invoice terkait ikut dibatalkan.`}>⛔ Batalkan pesanan</ConfirmButton></form>}
+          {can(u.role, 'pesanan.hapus') && <form action={deleteWO} className="mt-2"><input type="hidden" name="wo_id" value={w.id} /><ConfirmButton className="btn btn-sm w-full text-red-600" msg={`Hapus permanen pesanan ${w.nomor}? Hanya bisa bila belum ada pembayaran, invoice, atau pemakaian bahan.`}>🗑 Hapus pesanan permanen</ConfirmButton></form>}
         </Card>
 
         {seeMoney && <Card title="Ringkasan biaya">
@@ -152,7 +161,7 @@ export default function Page({ params, searchParams }: { params: { id: string };
           </dl>
         </Card>}
 
-        <Card title="Data pesanan">
+        <Card id="edit" title={kelola ? '✏️ Edit data pesanan' : 'Data pesanan'}>
           <form action={updateWO} className="space-y-3">
             <input type="hidden" name="id" value={w.id} />
             <Field label="Jenis pekerjaan"><input name="jenis_pekerjaan" list="jobs" defaultValue={w.jenis_pekerjaan} className="input" disabled={!kelola} /><datalist id="jobs">{JOB_TYPES.map(j => <option key={j} value={j} />)}</datalist></Field>
@@ -163,9 +172,9 @@ export default function Page({ params, searchParams }: { params: { id: string };
             </div>
             <Field label="Teknisi"><select name="teknisi_id" defaultValue={w.teknisi_id || ''} className="input" disabled={!kelola}><option value="">— belum —</option>{teknisi.map((t: any) => <option key={t.id} value={t.id}>{t.nama}</option>)}</select></Field>
             {harga && <div className="grid grid-cols-3 gap-2">
-              <Field label="Diskon"><input type="number" name="diskon" defaultValue={w.diskon || 0} className="input" /></Field>
-              <Field label="Est. TK"><input type="number" name="biaya_tenaga_kerja" defaultValue={w.biaya_tenaga_kerja || 0} className="input" /></Field>
-              <Field label="Est. ops"><input type="number" name="biaya_ops" defaultValue={w.biaya_ops || 0} className="input" /></Field>
+              <Field label="Diskon"><input type="number" step="any" name="diskon" defaultValue={w.diskon || 0} className="input" /></Field>
+              <Field label="Est. TK"><input type="number" step="any" name="biaya_tenaga_kerja" defaultValue={w.biaya_tenaga_kerja || 0} className="input" /></Field>
+              <Field label="Est. ops"><input type="number" step="any" name="biaya_ops" defaultValue={w.biaya_ops || 0} className="input" /></Field>
             </div>}
             <Field label="Catatan"><textarea name="catatan" defaultValue={w.catatan} className="input" rows={2} disabled={!kelola} /></Field>
             <Field label="Kondisi saat diserahkan (untuk surat serah terima)"><textarea name="kondisi_serah" defaultValue={w.kondisi_serah} className="input" rows={2} disabled={!kelola} /></Field>

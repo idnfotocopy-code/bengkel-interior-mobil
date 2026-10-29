@@ -37,7 +37,7 @@ export default function Page({ searchParams }: { searchParams: any }) {
         <Field label="Deskripsi" className="sm:col-span-2"><input name="item_deskripsi" className="input" /></Field>
         <Field label="Qty"><input name="item_qty" type="number" step="0.01" defaultValue={1} className="input" /></Field>
         <Field label="Satuan"><input name="item_satuan" defaultValue="paket" className="input" /></Field>
-        <Field label="Harga satuan (Rp)"><input name="item_harga" type="number" min={0} className="input" /></Field>
+        <Field label="Harga satuan (Rp)"><input name="item_harga" type="number" step="any" min={0} className="input" /></Field>
       </div></Card>
       <button className="btn btn-primary px-6">Simpan pesanan</button>
     </form>

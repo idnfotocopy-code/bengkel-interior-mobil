@@ -7,6 +7,7 @@ import { num, tgl, tglJam, today } from '@/lib/util';
 import { uploadUrl } from '@/lib/upload';
 import { Card, Flash, PageHeader, Empty, StatusBadge } from '@/components/ui';
 import { addProgress } from './actions';
+import { ProgressActions } from '@/components/ProgressActions';
 import { changeStatus, useMaterial } from '../pesanan/actions';
 export const dynamic = 'force-dynamic';
 
@@ -44,8 +45,9 @@ export default function Page({ searchParams }: { searchParams: any }) {
                 {w.deskripsi && <div className="text-xs mt-1">{w.deskripsi}</div>}</div>
             </div>
             <div><div className="flex justify-between text-xs mb-1"><span>Progres</span><span>{w.persen ?? 0}%</span></div><div className="h-2 rounded bg-stone-200"><div className="h-2 rounded bg-brand-600" style={{ width: `${w.persen ?? 0}%` }} /></div></div>
-            {prog.length > 0 && <ul className="text-xs space-y-1.5">{prog.map((p: any) => <li key={p.id} className="flex gap-2">{p.foto && <a href={uploadUrl(p.foto)} target="_blank"><img src={uploadUrl(p.foto)} alt="" className="w-12 h-10 object-cover rounded" /></a>}<div>{p.catatan} {p.persen != null && <b>({p.persen}%)</b>}<div className="text-slate-400">{tglJam(p.at)} · {p.oleh}</div></div></li>)}</ul>}
+            {prog.length > 0 && <ul className="text-xs space-y-1.5">{prog.map((p: any) => <li key={p.id} className="flex gap-2">{p.foto && <a href={uploadUrl(p.foto)} target="_blank"><img src={uploadUrl(p.foto)} alt="" className="w-12 h-10 object-cover rounded" /></a>}<div>{p.catatan} {p.persen != null && <b>({p.persen}%)</b>}<div className="text-slate-400">{tglJam(p.at)} · {p.oleh}</div><ProgressActions u={u} p={p} back={back} /></div></li>)}</ul>}
             {can(u.role, 'progres.tulis') && <form action={addProgress} className="grid gap-2 sm:grid-cols-6 border-t pt-3">
+              <div className="sm:col-span-6 text-xs font-semibold text-slate-600">➕ Tambah catatan progres</div>
               <input type="hidden" name="wo_id" value={w.id} /><input type="hidden" name="back" value={back} />
               <input name="catatan" placeholder="Catatan progres" className="input sm:col-span-4" required />
               <input name="persen" type="number" min={0} max={100} placeholder="%" className="input sm:col-span-2" />

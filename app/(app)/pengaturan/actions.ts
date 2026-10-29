@@ -23,3 +23,11 @@ export async function saveSettings(fd: FormData) {
   audit(u, 'UBAH', 'settings', '', settings().nama_usaha);
   redirect(withMsg('/pengaturan', 'ok', 'Pengaturan disimpan.'));
 }
+
+/** Kembalikan teks pengaturan ke nilai bawaan (logo tidak disentuh). */
+export async function resetSettings() {
+  const u = requirePerm('pengaturan.kelola');
+  for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) if (k !== 'logo') setSetting(k, String(v));
+  audit(u, 'RESET', 'settings', '', 'kembali ke bawaan');
+  redirect(withMsg('/pengaturan', 'ok', 'Pengaturan dikembalikan ke nilai bawaan.'));
+}

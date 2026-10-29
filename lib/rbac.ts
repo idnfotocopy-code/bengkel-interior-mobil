@@ -20,24 +20,26 @@ export const menusFor = (role: string) => MENUS.filter(m => m.roles.includes(rol
 
 /** Izin aksi — mengikuti matriks hak akses pada rancangan (bab 7). */
 const PERMS = {
-  'pelanggan.kelola': ['pemilik', 'admin'],
-  'kendaraan.kelola': ['pemilik', 'admin'],
-  'pesanan.kelola': ['pemilik', 'admin'],          // buat/ubah pesanan, item, teknisi
-  'pesanan.harga': ['pemilik', 'admin'],           // ubah harga (admin: sesuai izin)
-  'pesanan.batal': ['pemilik'],                    // batalkan pesanan
+  'pelanggan.kelola': ['pemilik', 'admin'],        // tambah / edit / hapus pelanggan
+  'kendaraan.kelola': ['pemilik', 'admin'],        // tambah / edit / hapus kendaraan
+  'pesanan.kelola': ['pemilik', 'admin'],          // buat/ubah pesanan, item (tambah/edit/hapus), teknisi
+  'pesanan.harga': ['pemilik', 'admin'],           // ubah harga
+  'pesanan.batal': ['pemilik', 'admin'],           // batalkan pesanan (wajib alasan)
+  'pesanan.hapus': ['pemilik', 'admin'],           // hapus permanen pesanan tanpa transaksi
   'pesanan.semua': ['pemilik', 'admin', 'keuangan', 'gudang'], // lihat semua pesanan (teknisi hanya tugasnya)
   'status.semua': ['pemilik', 'admin'],
-  'progres.tulis': ['pemilik', 'admin', 'teknisi'],
+  'progres.tulis': ['pemilik', 'admin', 'teknisi'],  // tambah/edit/hapus catatan progres sendiri
+  'progres.kelola': ['pemilik', 'admin'],          // edit/hapus catatan progres siapa pun
   'bahan.pakai': ['pemilik', 'admin', 'gudang', 'teknisi'],
-  'bahan.batal': ['pemilik', 'gudang'],
-  'stok.master': ['pemilik', 'gudang'],
-  'stok.masuk': ['pemilik', 'gudang', 'admin'],
-  'stok.penyesuaian': ['pemilik', 'gudang'],
+  'bahan.batal': ['pemilik', 'admin', 'gudang'],
+  'stok.master': ['pemilik', 'admin', 'gudang'],   // tambah / edit / hapus bahan & pemasok
+  'stok.masuk': ['pemilik', 'admin', 'gudang'],
+  'stok.penyesuaian': ['pemilik', 'admin', 'gudang'],
   'stok.lihat_biaya': ['pemilik', 'keuangan', 'gudang', 'admin'],
   'bayar.catat': ['pemilik', 'keuangan', 'admin'],
-  'bayar.hapus': ['pemilik', 'keuangan'],
+  'bayar.hapus': ['pemilik', 'keuangan', 'admin'],  // edit / hapus pembayaran
   'invoice.kelola': ['pemilik', 'keuangan', 'admin'],
-  'biaya.kelola': ['pemilik', 'keuangan'],
+  'biaya.kelola': ['pemilik', 'keuangan', 'admin'],
   'kas.kelola': ['pemilik', 'keuangan'],
   'dokumen.keuangan': ['pemilik', 'keuangan', 'admin'], // invoice & kuitansi PDF
   'dokumen.pesanan': ['pemilik', 'admin', 'keuangan', 'gudang', 'teknisi'],
@@ -51,3 +53,36 @@ const PERMS = {
 export type Perm = keyof typeof PERMS;
 export const can = (role: string | undefined, p: Perm) => !!role && (PERMS[p] as readonly string[]).includes(role);
 export const PERM_LIST = PERMS;
+
+/** Label ramah-pengguna untuk matriks hak akses aksi (halaman Pengguna & README). */
+export const PERM_LABEL: Record<Perm, string> = {
+  'pelanggan.kelola': 'Pelanggan: tambah / edit / hapus',
+  'kendaraan.kelola': 'Kendaraan: tambah / edit / hapus',
+  'pesanan.kelola': 'Pesanan: tambah / edit, atur teknisi',
+  'pesanan.harga': 'Pesanan: tambah / edit / hapus item & harga',
+  'pesanan.batal': 'Pesanan: batalkan',
+  'pesanan.hapus': 'Pesanan: hapus permanen (tanpa transaksi)',
+  'pesanan.semua': 'Pesanan: lihat semua (teknisi hanya tugasnya)',
+  'status.semua': 'Pesanan: ubah ke semua status',
+  'progres.tulis': 'Produksi: tambah / edit / hapus progres sendiri',
+  'progres.kelola': 'Produksi: edit / hapus progres siapa pun',
+  'bahan.pakai': 'Produksi: catat pemakaian bahan',
+  'bahan.batal': 'Produksi: batalkan pemakaian bahan',
+  'stok.master': 'Persediaan: tambah / edit / hapus bahan & pemasok',
+  'stok.masuk': 'Persediaan: stok masuk (pembelian)',
+  'stok.penyesuaian': 'Persediaan: penyesuaian / stok opname',
+  'stok.lihat_biaya': 'Persediaan: lihat harga beli & nilai stok',
+  'bayar.catat': 'Keuangan: tambah pembayaran',
+  'bayar.hapus': 'Keuangan: edit / hapus pembayaran',
+  'invoice.kelola': 'Keuangan: buat / edit / batalkan invoice',
+  'biaya.kelola': 'Keuangan: tambah / edit / hapus pengeluaran',
+  'kas.kelola': 'Keuangan: tambah / edit / hapus akun kas & bank',
+  'dokumen.keuangan': 'PDF invoice & kuitansi',
+  'dokumen.pesanan': 'PDF work order / serah terima',
+  'laporan.stok': 'Laporan stok',
+  'laporan.transaksi': 'Laporan transaksi',
+  'laporan.labarugi': 'Laporan laba rugi',
+  'laporan.piutang': 'Laporan piutang',
+  'users.kelola': 'Pengguna: tambah / edit / nonaktifkan / hapus',
+  'pengaturan.kelola': 'Pengaturan: edit profil bengkel',
+};

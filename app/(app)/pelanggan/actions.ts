@@ -19,7 +19,8 @@ export async function deleteCustomer(fd: FormData) {
   const u = requirePerm('pelanggan.kelola');
   const id = Number(fd.get('id'));
   const used = one('SELECT COUNT(*) n FROM work_orders WHERE customer_id=?', id).n;
-  if (used) redirect(`/pelanggan/${id}?err=${q('Pelanggan memiliki riwayat pesanan sehingga tidak dapat dihapus.')}`);
+  const back = s(fd, 'back') === '/pelanggan' ? '/pelanggan' : `/pelanggan/${id}`;
+  if (used) redirect(`${back}?err=${q('Pelanggan memiliki riwayat pesanan sehingga tidak dapat dihapus. Batalkan/hapus pesanannya dulu.')}`);
   run('DELETE FROM vehicles WHERE customer_id=?', id);
   run('DELETE FROM customers WHERE id=?', id);
   audit(u, 'HAPUS', 'customers', id);
