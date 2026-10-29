@@ -15,6 +15,7 @@ export async function createWO(fd: FormData) {
   const customer_id = Number(fd.get('customer_id')), vehicle_id = Number(fd.get('vehicle_id'));
   const v = one('SELECT * FROM vehicles WHERE id=? AND customer_id=?', vehicle_id, customer_id);
   if (!v) redirect(`/pesanan/baru?err=${q('Pilih pelanggan dan kendaraan miliknya.')}`);
+  if (!s(fd, 'jenis_pekerjaan')) redirect(`/pesanan/baru?err=${q('Pilih jenis pekerjaan.')}`);
   const tgl_masuk = s(fd, 'tgl_masuk') || today();
   const status = WO_STATUSES.includes(s(fd, 'status') as any) ? s(fd, 'status') : 'Konsultasi';
   const id = tx(() => {

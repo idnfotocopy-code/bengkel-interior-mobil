@@ -1,6 +1,8 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import { JOB_TYPES } from './constants';
+import { nowStr } from './util';
 
 export const ROOT = process.cwd();
 export const PATHS = {
@@ -27,6 +29,7 @@ CREATE TABLE IF NOT EXISTS cash_accounts(id INTEGER PRIMARY KEY, nama TEXT NOT N
 CREATE TABLE IF NOT EXISTS invoices(id INTEGER PRIMARY KEY, nomor TEXT UNIQUE NOT NULL, wo_id INTEGER NOT NULL, tanggal TEXT NOT NULL, jatuh_tempo TEXT, total REAL NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'Belum lunas', catatan TEXT, created_by INTEGER, created_at TEXT);
 CREATE TABLE IF NOT EXISTS payments(id INTEGER PRIMARY KEY, nomor TEXT UNIQUE NOT NULL, wo_id INTEGER, invoice_id INTEGER, tanggal TEXT NOT NULL, jenis TEXT NOT NULL, jumlah REAL NOT NULL, metode TEXT, cash_account_id INTEGER, catatan TEXT, user_id INTEGER, created_at TEXT);
 CREATE TABLE IF NOT EXISTS expenses(id INTEGER PRIMARY KEY, tanggal TEXT NOT NULL, kategori TEXT NOT NULL, deskripsi TEXT, jumlah REAL NOT NULL, wo_id INTEGER, cash_account_id INTEGER, user_id INTEGER, created_at TEXT);
+CREATE TABLE IF NOT EXISTS job_types(id INTEGER PRIMARY KEY, nama TEXT UNIQUE NOT NULL, deskripsi TEXT, aktif INTEGER NOT NULL DEFAULT 1, urutan INTEGER NOT NULL DEFAULT 0, created_at TEXT);
 CREATE TABLE IF NOT EXISTS audit_logs(id INTEGER PRIMARY KEY, user_id INTEGER, username TEXT, aksi TEXT, entitas TEXT, entitas_id TEXT, detail TEXT, at TEXT);
 CREATE INDEX IF NOT EXISTS ix_wo_status ON work_orders(status);
 CREATE INDEX IF NOT EXISTS ix_mov_mat ON stock_movements(material_id, tanggal);
@@ -50,8 +53,18 @@ export function db(): Database.Database {
       const { seed } = require('./seed');
       seed();
     }
+    seedJobTypes(d);
   }
   return g.__bimdb;
+}
+
+/** Isi master jenis pekerjaan dari daftar bawaan bila tabel masih kosong (instalasi baru / DB lama sebelum modul ini). */
+export function seedJobTypes(d: Database.Database = db()) {
+  const n = (d.prepare('SELECT COUNT(*) n FROM job_types').get() as any).n;
+  if (n > 0) return;
+  const now = nowStr();
+  const ins = d.prepare('INSERT OR IGNORE INTO job_types(nama, deskripsi, aktif, urutan, created_at) VALUES(?,?,1,?,?)');
+  d.transaction(() => JOB_TYPES.forEach((nama, i) => ins.run(nama, null, (i + 1) * 10, now)))();
 }
 
 export const all = <T = any>(sql: string, ...p: any[]): T[] => db().prepare(sql).all(...p) as T[];

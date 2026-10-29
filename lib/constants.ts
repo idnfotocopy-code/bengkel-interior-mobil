@@ -11,4 +11,5 @@ export const STATUS_COLOR: Record<string, string> = {
 export const EXPENSE_CATEGORIES = ['Pembelian bahan', 'Tenaga kerja', 'Listrik & air', 'Transportasi', 'Peralatan', 'Sewa tempat', 'Operasional lain'];
 export const PAYMENT_TYPES = ['DP', 'Pembayaran tahap', 'Pelunasan', 'Jasa tambahan', 'Pendapatan lain'];
 export const PAYMENT_METHODS = ['Tunai', 'Transfer bank', 'QRIS', 'Debit/Kartu'];
+/** Daftar bawaan untuk mengisi master `job_types` pertama kali. Daftar aktif dikelola di menu Jenis pekerjaan. */
 export const JOB_TYPES = ['Retrim jok kulit', 'Retrim jok sintetis', 'Ganti plafon', 'Pasang karpet dasar', 'Cover setir', 'Doortrim', 'Restorasi interior klasik', 'Peredam suara', 'Lainnya'];

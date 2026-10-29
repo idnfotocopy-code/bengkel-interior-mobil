@@ -4,7 +4,7 @@ import { all, one } from '@/lib/db';
 import { can } from '@/lib/rbac';
 import { woForUser } from '@/lib/access';
 import { woSummary, activeInvoice } from '@/lib/biz';
-import { WO_STATUSES, TEKNISI_STATUSES, WO_CANCELLED, JOB_TYPES, PAYMENT_TYPES, PAYMENT_METHODS } from '@/lib/constants';
+import { WO_STATUSES, TEKNISI_STATUSES, WO_CANCELLED, PAYMENT_TYPES, PAYMENT_METHODS } from '@/lib/constants';
 import { rp, num, tgl, tglJam, today, addDays } from '@/lib/util';
 import { uploadUrl } from '@/lib/upload';
 import { Card, Flash, PageHeader, Empty, TableWrap, StatusBadge, InvBadge, Field } from '@/components/ui';
@@ -29,6 +29,8 @@ export default function Page({ params, searchParams }: { params: { id: string };
   const prog = all('SELECT p.*, us.nama oleh FROM work_progress p LEFT JOIN users us ON us.id=p.user_id WHERE p.wo_id=? ORDER BY p.id DESC', w.id);
   const mats = all('SELECT id, kode, nama, satuan, stok FROM materials WHERE aktif=1 ORDER BY kode');
   const teknisi = all("SELECT id, nama FROM users WHERE role='teknisi' AND aktif=1 ORDER BY nama");
+  const jobs = all<{ nama: string }>('SELECT nama FROM job_types WHERE aktif=1 ORDER BY urutan, nama').map(j => j.nama);
+  const jobLegacy = w.jenis_pekerjaan && !jobs.includes(w.jenis_pekerjaan) ? w.jenis_pekerjaan : '';
   const accounts = all('SELECT * FROM cash_accounts WHERE aktif=1');
   const kelola = can(u.role, 'pesanan.kelola'), harga = can(u.role, 'pesanan.harga');
   const seeMoney = !['teknisi', 'gudang'].includes(u.role);
@@ -164,7 +166,7 @@ export default function Page({ params, searchParams }: { params: { id: string };
         <Card id="edit" title={kelola ? '✏️ Edit data pesanan' : 'Data pesanan'}>
           <form action={updateWO} className="space-y-3">
             <input type="hidden" name="id" value={w.id} />
-            <Field label="Jenis pekerjaan"><input name="jenis_pekerjaan" list="jobs" defaultValue={w.jenis_pekerjaan} className="input" disabled={!kelola} /><datalist id="jobs">{JOB_TYPES.map(j => <option key={j} value={j} />)}</datalist></Field>
+            <Field label="Jenis pekerjaan"><select name="jenis_pekerjaan" defaultValue={w.jenis_pekerjaan || ''} className="input" disabled={!kelola} required><option value="" disabled>— pilih jenis pekerjaan —</option>{jobLegacy && <option value={jobLegacy}>{jobLegacy} (di luar master)</option>}{jobs.map(j => <option key={j} value={j}>{j}</option>)}</select></Field>
             <Field label="Deskripsi"><textarea name="deskripsi" defaultValue={w.deskripsi} className="input" rows={2} disabled={!kelola} /></Field>
             <div className="grid grid-cols-2 gap-2">
               <Field label="Tgl masuk"><input type="date" name="tgl_masuk" defaultValue={w.tgl_masuk} className="input" disabled={!kelola} /></Field>

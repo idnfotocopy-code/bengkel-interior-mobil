@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import { db, insert, run, one, DEFAULT_SETTINGS, setSetting } from './db';
+import { db, insert, run, one, DEFAULT_SETTINGS, setSetting, seedJobTypes } from './db';
 import { today, addDays, nowStr } from './util';
 
 /** Data demo. Semua nama, nomor, dan angka fiktif. Password demo: password123 */
@@ -12,6 +12,7 @@ export function seed() {
 
   d.transaction(() => {
     for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) setSetting(k, v);
+    seedJobTypes(d);
     const hash = bcrypt.hashSync('password123', 10);
     const U: Record<string, number> = {};
     for (const [username, nama, role] of [

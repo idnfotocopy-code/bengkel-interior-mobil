@@ -3,7 +3,7 @@ import { requireUser } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { all } from '@/lib/db';
 import { can } from '@/lib/rbac';
-import { WO_STATUSES, JOB_TYPES } from '@/lib/constants';
+import { WO_STATUSES } from '@/lib/constants';
 import { today, addDays } from '@/lib/util';
 import { Card, Flash, PageHeader, Field } from '@/components/ui';
 import { VehiclePicker } from '@/components/VehiclePicker';
@@ -16,6 +16,7 @@ export default function Page({ searchParams }: { searchParams: any }) {
   const customers = all('SELECT id, kode, nama FROM customers ORDER BY nama');
   const vehicles = all('SELECT id, customer_id, nopol, merek, tipe FROM vehicles ORDER BY nopol');
   const teknisi = all("SELECT id, nama FROM users WHERE role='teknisi' AND aktif=1 ORDER BY nama");
+  const jobs = all<{ nama: string }>('SELECT nama FROM job_types WHERE aktif=1 ORDER BY urutan, nama');
   return (<div>
     <PageHeader title="Pesanan baru" desc="Nomor pesanan dibuat otomatis (BIM-YYYY-####) saat disimpan."><Link href="/pesanan" className="btn">← Kembali</Link></PageHeader>
     <Flash sp={searchParams} />
@@ -24,7 +25,7 @@ export default function Page({ searchParams }: { searchParams: any }) {
         <VehiclePicker customers={customers} vehicles={vehicles} customerId={Number(searchParams?.customer_id) || undefined} vehicleId={Number(searchParams?.vehicle_id) || undefined} />
       </div><p className="text-xs text-slate-500 mt-2">Pelanggan/kendaraan belum ada? <Link className="link" href="/pelanggan">Tambah pelanggan</Link> · <Link className="link" href="/kendaraan">Tambah kendaraan</Link></p></Card>
       <Card title="Pekerjaan & jadwal"><div className="grid-form">
-        <Field label="Jenis pekerjaan *"><input name="jenis_pekerjaan" list="jobs" className="input" required placeholder="mis. Retrim jok kulit" /><datalist id="jobs">{JOB_TYPES.map(j => <option key={j} value={j} />)}</datalist></Field>
+        <Field label="Jenis pekerjaan *"><select name="jenis_pekerjaan" className="input" required defaultValue=""><option value="" disabled>— pilih jenis pekerjaan —</option>{jobs.map(j => <option key={j.nama} value={j.nama}>{j.nama}</option>)}</select>{can(u.role, 'jenis.kelola') && <p className="text-xs text-slate-500 mt-1">Belum ada di daftar? <Link className="link" href="/jenis-pekerjaan#tambah">Tambah jenis pekerjaan</Link></p>}</Field>
         <Field label="Tanggal masuk"><input type="date" name="tgl_masuk" defaultValue={today()} className="input" /></Field>
         <Field label="Target selesai"><input type="date" name="target_selesai" defaultValue={addDays(today(), 7)} className="input" /></Field>
         <Field label="Status awal"><select name="status" className="input">{WO_STATUSES.slice(0, 4).map(s => <option key={s}>{s}</option>)}</select></Field>

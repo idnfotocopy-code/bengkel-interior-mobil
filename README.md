@@ -41,6 +41,7 @@ Semua password: `password123`. **Ganti / nonaktifkan sebelum dipakai sungguhan**
 | Pelanggan | ✓ | ✓ | – | – | – |
 | Kendaraan | ✓ | ✓ | – | – | lihat |
 | Pesanan / WO | ✓ | ✓ | lihat semua | lihat | hanya tugasnya |
+| Jenis pekerjaan | ✓ | ✓ | – | – | – |
 | Produksi | ✓ | ✓ | – | – | ✓ |
 | Persediaan | ✓ | ✓ | lihat | ✓ | – |
 | Keuangan | ✓ | ✓ (tanpa kas) | ✓ | – | – |
@@ -58,6 +59,7 @@ Tombol yang tidak diizinkan disembunyikan, dan setiap server action memeriksa iz
 | Kendaraan: tambah/edit/hapus | ✓ | ✓ | – | – | – |
 | Pesanan & item: tambah/edit/hapus, ubah harga | ✓ | ✓ | – | – | – |
 | Pesanan: batalkan (wajib alasan) / hapus permanen* | ✓ | ✓ | – | – | – |
+| Jenis pekerjaan: tambah/edit/nonaktifkan/hapus** | ✓ | ✓ | – | – | – |
 | Progres produksi: tambah | ✓ | ✓ | – | – | ✓ (tugasnya) |
 | Progres produksi: edit/hapus | ✓ semua | ✓ semua | – | – | ✓ catatan sendiri |
 | Pemakaian bahan pada pesanan | ✓ | ✓ | – | ✓ | ✓ |
@@ -84,6 +86,7 @@ Matriks lengkap per izin juga tampil di menu **Pengguna & Role → Role & hak ak
   - Rincian jasa/barang, diskon, DP dan sisa.
   - 10 status alur kerja, ditambah Dibatalkan (pembatalan butuh alasan dan konfirmasi).
   - Penugasan teknisi dan riwayat status.
+- **Jenis pekerjaan** (`/jenis-pekerjaan`, pemilik & admin): master data jenis pekerjaan yang tampil sebagai pilihan di form pesanan baru/edit. Tambah, edit (nama, deskripsi, urutan tampil; ganti nama bisa ikut diterapkan ke pesanan lama), nonaktifkan/aktifkan, hapus. Jenis yang sudah dipakai pesanan hanya dinonaktifkan. Tabel `job_types` dibuat otomatis saat aplikasi start dan diisi daftar bawaan bila masih kosong.
 - **Produksi**: papan kerja untuk teknisi, progres % dengan foto, pemakaian bahan yang langsung mengurangi stok, dan tombol status.
 - **Persediaan**:
   - Master bahan dan supplier.
