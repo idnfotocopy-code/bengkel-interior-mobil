@@ -1,0 +1,106 @@
+import Link from 'next/link';
+import { requireUser } from '@/lib/auth';
+import { all } from '@/lib/db';
+import { can } from '@/lib/rbac';
+import { periodFinance, receivables, cashBalances } from '@/lib/biz';
+import { EXPENSE_CATEGORIES } from '@/lib/constants';
+import { rp, tgl, today, periodFromSp } from '@/lib/util';
+import { Card, Flash, PageHeader, Empty, TableWrap, Tabs, Stat, InvBadge, Field, PeriodFilter } from '@/components/ui';
+import { ConfirmButton } from '@/components/Confirm';
+import { deletePayment, addExpense, deleteExpense, saveCashAccount, cancelInvoice } from './actions';
+export const dynamic = 'force-dynamic';
+
+export default function Page({ searchParams }: { searchParams: any }) {
+  const u = requireUser('keuangan');
+  const tab = ['pembayaran', 'pengeluaran', 'invoice', 'piutang', 'kas'].includes(searchParams?.tab) ? searchParams.tab : 'pembayaran';
+  const { from, to } = periodFromSp(searchParams);
+  const f = periodFinance(from, to);
+  const pr = receivables();
+  const qs = `from=${from}&to=${to}`;
+  const tabs = [
+    { key: 'pembayaran', label: '💵 Pembayaran masuk', href: `/keuangan?tab=pembayaran&${qs}` },
+    { key: 'pengeluaran', label: '💸 Pengeluaran', href: `/keuangan?tab=pengeluaran&${qs}` },
+    { key: 'invoice', label: '🧾 Invoice', href: `/keuangan?tab=invoice&${qs}` },
+    { key: 'piutang', label: `⏳ Piutang (${pr.rows.length})`, href: `/keuangan?tab=piutang&${qs}` },
+    { key: 'kas', label: '🏦 Kas & bank', href: `/keuangan?tab=kas&${qs}` },
+  ];
+  const accounts = all('SELECT * FROM cash_accounts WHERE aktif=1 ORDER BY id');
+  return (<div>
+    <PageHeader title="Keuangan" desc="Pembayaran pelanggan, pengeluaran, invoice, piutang, dan saldo kas. Uang muka bukan otomatis keuntungan." />
+    <Flash sp={searchParams} />
+    <PeriodFilter from={from} to={to} extra={<input type="hidden" name="tab" value={tab} />} />
+    <div className="grid gap-3 grid-cols-2 lg:grid-cols-5 mb-5">
+      <Stat label="Omzet (invoice)" value={rp(f.omzet)} sub="periode ini" />
+      <Stat label="Uang masuk" value={rp(f.pemasukan)} color="green" sub="semua pembayaran" />
+      <Stat label="Pengeluaran" value={rp(f.pengeluaran)} color="red" />
+      <Stat label="Laba sementara" value={rp(f.laba)} color="amber" sub="omzet − bahan − TK − ops" />
+      <Stat label="Piutang" value={rp(pr.total)} color="red" sub={`${pr.rows.length} tagihan`} />
+    </div>
+    <Tabs items={tabs} active={tab} />
+
+    {tab === 'pembayaran' && (() => {
+      const rows = all(`SELECT p.*, w.nomor wo_nomor, c.nama pelanggan, a.nama akun FROM payments p LEFT JOIN work_orders w ON w.id=p.wo_id LEFT JOIN customers c ON c.id=w.customer_id LEFT JOIN cash_accounts a ON a.id=p.cash_account_id WHERE p.tanggal BETWEEN ? AND ? ORDER BY p.tanggal DESC, p.id DESC`, from, to);
+      return <Card pad={false} title={`Pembayaran ${tgl(from)} – ${tgl(to)}`} actions={<span className="text-xs text-slate-500">Catat pembayaran dari halaman pesanan.</span>}>
+        {rows.length ? <TableWrap><table className="tbl"><thead><tr><th>Kuitansi</th><th>Tanggal</th><th>Pesanan / pelanggan</th><th>Jenis</th><th>Metode</th><th className="num">Jumlah</th><th></th></tr></thead><tbody>
+          {rows.map((p: any) => <tr key={p.id}><td>{p.nomor}</td><td>{tgl(p.tanggal)}</td><td><Link className="link" href={`/pesanan/${p.wo_id}`}>{p.wo_nomor}</Link><div className="text-xs text-slate-500">{p.pelanggan}</div></td><td>{p.jenis}</td><td className="text-xs">{p.metode} · {p.akun || '-'}</td><td className="num">{rp(p.jumlah)}</td>
+            <td className="whitespace-nowrap"><a className="btn btn-sm" target="_blank" href={`/api/pdf/kuitansi?id=${p.id}`}>Kuitansi</a> {can(u.role, 'bayar.hapus') && <form action={deletePayment} className="inline"><input type="hidden" name="id" value={p.id} /><input type="hidden" name="back" value={`/keuangan?tab=pembayaran&${qs}`} /><ConfirmButton className="btn btn-sm text-red-600" msg={`Hapus pembayaran ${p.nomor}?`}>Hapus</ConfirmButton></form>}</td></tr>)}
+          <tr className="font-bold"><td colSpan={5} className="num">Total</td><td className="num">{rp(rows.reduce((a: number, r: any) => a + r.jumlah, 0))}</td><td></td></tr>
+        </tbody></table></TableWrap> : <Empty>Tidak ada pembayaran pada periode ini.</Empty>}
+      </Card>;
+    })()}
+
+    {tab === 'pengeluaran' && (() => {
+      const rows = all(`SELECT e.*, w.nomor wo_nomor, a.nama akun, us.nama oleh FROM expenses e LEFT JOIN work_orders w ON w.id=e.wo_id LEFT JOIN cash_accounts a ON a.id=e.cash_account_id LEFT JOIN users us ON us.id=e.user_id WHERE e.tanggal BETWEEN ? AND ? ORDER BY e.tanggal DESC, e.id DESC`, from, to);
+      const wos = all("SELECT id, nomor FROM work_orders WHERE status!='Dibatalkan' ORDER BY id DESC LIMIT 50");
+      return <div className="space-y-5">
+        {can(u.role, 'biaya.kelola') && <Card title="Catat pengeluaran"><form action={addExpense} className="grid-form">
+          <Field label="Tanggal"><input type="date" name="tanggal" defaultValue={today()} className="input" /></Field>
+          <Field label="Kategori"><select name="kategori" className="input">{EXPENSE_CATEGORIES.map(k => <option key={k}>{k}</option>)}</select></Field>
+          <Field label="Jumlah (Rp)"><input type="number" name="jumlah" min={1} className="input" required /></Field>
+          <Field label="Keterangan" className="sm:col-span-2"><input name="deskripsi" className="input" required /></Field>
+          <Field label="Terkait pesanan (opsional)"><select name="wo_id" className="input"><option value="">—</option>{wos.map((w: any) => <option key={w.id} value={w.id}>{w.nomor}</option>)}</select></Field>
+          <Field label="Dibayar dari"><select name="cash_account_id" className="input">{accounts.map((a: any) => <option key={a.id} value={a.id}>{a.nama}</option>)}</select></Field>
+          <div className="flex items-end"><button className="btn btn-primary">Simpan pengeluaran</button></div>
+        </form><p className="text-xs text-slate-500 mt-2">Pembelian bahan sebaiknya dicatat dari menu Persediaan → Stok masuk (centang “catat sebagai pengeluaran”) agar stok ikut bertambah.</p></Card>}
+        <Card pad={false} title="Daftar pengeluaran">
+          {rows.length ? <TableWrap><table className="tbl"><thead><tr><th>Tanggal</th><th>Kategori</th><th>Keterangan</th><th>Pesanan</th><th>Akun</th><th className="num">Jumlah</th><th></th></tr></thead><tbody>
+            {rows.map((e: any) => <tr key={e.id}><td>{tgl(e.tanggal)}</td><td>{e.kategori}</td><td>{e.deskripsi}<div className="text-xs text-slate-400">{e.oleh}</div></td><td>{e.wo_nomor ? <Link className="link" href={`/pesanan/${e.wo_id}`}>{e.wo_nomor}</Link> : '-'}</td><td className="text-xs">{e.akun || '-'}</td><td className="num">{rp(e.jumlah)}</td>
+              <td>{can(u.role, 'biaya.kelola') && <form action={deleteExpense}><input type="hidden" name="id" value={e.id} /><ConfirmButton className="btn btn-sm text-red-600" msg="Hapus pengeluaran ini?">Hapus</ConfirmButton></form>}</td></tr>)}
+            <tr className="font-bold"><td colSpan={5} className="num">Total</td><td className="num">{rp(rows.reduce((a: number, r: any) => a + r.jumlah, 0))}</td><td></td></tr>
+          </tbody></table></TableWrap> : <Empty>Tidak ada pengeluaran pada periode ini.</Empty>}
+        </Card>
+      </div>;
+    })()}
+
+    {tab === 'invoice' && (() => {
+      const rows = all(`SELECT i.*, w.nomor wo_nomor, c.nama pelanggan, (SELECT COALESCE(SUM(jumlah),0) FROM payments p WHERE p.wo_id=i.wo_id) dibayar FROM invoices i JOIN work_orders w ON w.id=i.wo_id JOIN customers c ON c.id=w.customer_id WHERE i.tanggal BETWEEN ? AND ? ORDER BY i.id DESC`, from, to);
+      return <Card pad={false} title="Invoice" actions={<span className="text-xs text-slate-500">Buat invoice dari halaman pesanan.</span>}>
+        {rows.length ? <TableWrap><table className="tbl"><thead><tr><th>No. invoice</th><th>Tanggal</th><th>Jatuh tempo</th><th>Pesanan / pelanggan</th><th className="num">Total</th><th className="num">Dibayar</th><th>Status</th><th></th></tr></thead><tbody>
+          {rows.map((i: any) => <tr key={i.id}><td>{i.nomor}</td><td>{tgl(i.tanggal)}</td><td>{tgl(i.jatuh_tempo)}</td><td><Link className="link" href={`/pesanan/${i.wo_id}`}>{i.wo_nomor}</Link><div className="text-xs text-slate-500">{i.pelanggan}</div></td><td className="num">{rp(i.total)}</td><td className="num">{rp(i.dibayar)}</td><td><InvBadge status={i.status} /></td>
+            <td className="whitespace-nowrap">{i.status !== 'Batal' && <><a className="btn btn-sm" target="_blank" href={`/api/pdf/invoice?id=${i.id}`}>PDF</a> {can(u.role, 'invoice.kelola') && <form action={cancelInvoice} className="inline"><input type="hidden" name="id" value={i.id} /><input type="hidden" name="back" value={`/keuangan?tab=invoice&${qs}`} /><ConfirmButton className="btn btn-sm text-red-600" msg={`Batalkan invoice ${i.nomor}?`}>Batal</ConfirmButton></form>}</>}</td></tr>)}
+        </tbody></table></TableWrap> : <Empty>Tidak ada invoice pada periode ini.</Empty>}
+      </Card>;
+    })()}
+
+    {tab === 'piutang' && <Card pad={false} title={`Piutang pelanggan — total ${rp(pr.total)}`} actions={can(u.role, 'laporan.piutang') && <a className="btn btn-sm" target="_blank" href="/api/pdf/piutang">📄 PDF piutang</a>}>
+      {pr.rows.length ? <TableWrap><table className="tbl"><thead><tr><th>Invoice</th><th>Pelanggan</th><th>Jatuh tempo</th><th className="num">Total</th><th className="num">Dibayar</th><th className="num">Sisa</th><th>Umur</th></tr></thead><tbody>
+        {pr.rows.map((r: any) => <tr key={r.id}><td><Link className="link" href={`/pesanan/${r.wo_id}`}>{r.nomor}</Link><div className="text-xs text-slate-500">{r.wo_nomor}</div></td><td>{r.pelanggan}<div className="text-xs text-slate-500">{r.telepon}</div></td><td>{tgl(r.jatuh_tempo)}</td><td className="num">{rp(r.total)}</td><td className="num">{rp(r.dibayar)}</td><td className="num font-semibold text-red-600">{rp(r.sisa)}</td><td className={r.umur > 0 ? 'text-red-600 text-xs font-semibold' : 'text-xs text-slate-500'}>{r.umur > 0 ? `lewat ${r.umur} hari` : `${-r.umur} hari lagi`}</td></tr>)}
+      </tbody></table></TableWrap> : <Empty>Tidak ada piutang. 🎉</Empty>}
+    </Card>}
+
+    {tab === 'kas' && <div className="space-y-5">
+      <Card pad={false} title="Saldo kas & bank (saldo awal + pembayaran masuk − pengeluaran)">
+        <TableWrap><table className="tbl"><thead><tr><th>Akun</th><th>Jenis</th><th>No. rekening</th><th className="num">Saldo awal</th><th className="num">Masuk</th><th className="num">Keluar</th><th className="num">Saldo</th></tr></thead><tbody>
+          {cashBalances().map((a: any) => <tr key={a.id}><td>{a.nama}</td><td className="capitalize">{a.jenis}</td><td>{a.no_rekening || '-'}</td><td className="num">{rp(a.saldo_awal)}</td><td className="num">{rp(a.masuk)}</td><td className="num">{rp(a.keluar)}</td><td className="num font-bold">{rp(a.saldo)}</td></tr>)}
+        </tbody></table></TableWrap>
+      </Card>
+      {can(u.role, 'kas.kelola') && <Card title="Tambah akun kas / bank"><form action={saveCashAccount} className="grid-form">
+        <Field label="Nama akun"><input name="nama" className="input" required /></Field>
+        <Field label="Jenis"><select name="jenis" className="input"><option value="kas">Kas</option><option value="bank">Bank</option><option value="ewallet">E-wallet</option></select></Field>
+        <Field label="No. rekening"><input name="no_rekening" className="input" /></Field>
+        <Field label="Saldo awal (Rp)"><input type="number" name="saldo_awal" defaultValue={0} className="input" /></Field>
+        <div className="flex items-end"><button className="btn btn-primary">Simpan akun</button></div>
+      </form></Card>}
+    </div>}
+  </div>);
+}
