@@ -3,13 +3,13 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { requireUser, audit } from '@/lib/auth';
 import { db, one } from '@/lib/db';
-import { ALL_PERMS, MENUS, LOCKED_PERMS, LOCKED_MENUS, ALWAYS_MENUS, ROLES, defaultCan, defaultMenu, ensureRbac, clearRbacCache, roleKodes, roleRow } from '@/lib/rbac';
+import { can, ALL_PERMS, MENUS, LOCKED_PERMS, LOCKED_MENUS, ALWAYS_MENUS, ROLES, defaultCan, defaultMenu, ensureRbac, clearRbacCache, roleKodes, roleRow } from '@/lib/rbac';
 import { s, nowStr, withMsg } from '@/lib/util';
 
 const BASE = '/users/roles';
 const COLORS = ['slate', 'violet', 'sky', 'green', 'amber', 'orange', 'red', 'teal'];
-/** Hanya pemilik (menu Hak akses dikunci khusus pemilik). */
-const owner = () => { const u = requireUser('hak-akses'); if (u.role !== 'pemilik') redirect(withMsg('/dashboard', 'err', 'Hanya pemilik yang dapat mengubah hak akses.')); ensureRbac(); return u; };
+/** Pemilik, atau peran yang diberi menu Hak akses + izin kelola pengguna (mis. admin/owner yang disamakan dengan pemilik). */
+const owner = () => { const u = requireUser('hak-akses'); if (u.role !== 'pemilik' && !can(u.role, 'users.kelola')) redirect(withMsg('/dashboard', 'err', 'Butuh izin "Pengguna: kelola" untuk mengubah hak akses.')); ensureRbac(); return u; };
 const done = (msg: string) => { clearRbacCache(); revalidatePath('/', 'layout'); redirect(withMsg(BASE, 'ok', msg)); };
 
 /** Simpan seluruh matriks (centang perm × role dan menu × role). Pemilik tidak disimpan — selalu akses penuh. */
@@ -47,6 +47,22 @@ export async function resetMatrix(fd: FormData) {
   })();
   audit(u, 'UBAH', 'hak_akses', target, `reset ke bawaan: ${roles.join(', ')}`);
   done(`Hak akses ${roles.join(', ')} dikembalikan ke bawaan.`);
+}
+
+/** Samakan satu peran (bawaan: admin) dengan pemilik: semua menu & aksi dicentang. Tetap bisa diubah lagi di matriks. */
+export async function samakanDenganPemilik(fd: FormData) {
+  const u = owner();
+  const kode = s(fd, 'kode') || 'admin';
+  if (kode === 'pemilik' || !roleRow(kode)) redirect(withMsg(BASE, 'err', 'Peran tidak valid.'));
+  const d = db();
+  d.transaction(() => {
+    d.prepare('DELETE FROM role_perms WHERE role=?').run(kode);
+    d.prepare('DELETE FROM role_menus WHERE role=?').run(kode);
+    for (const p of ALL_PERMS) d.prepare('INSERT INTO role_perms(role,perm) VALUES(?,?)').run(kode, p);
+    for (const m of MENUS) d.prepare('INSERT INTO role_menus(role,menu) VALUES(?,?)').run(kode, m.key);
+  })();
+  audit(u, 'UBAH', 'hak_akses', kode, `disamakan dengan pemilik: ${ALL_PERMS.length} izin, ${MENUS.length} menu`);
+  done(`Hak akses ${roleRow(kode)!.label} sekarang sama dengan pemilik (semua menu & aksi). Masih bisa diubah di matriks.`);
 }
 
 /** Ganti label tampilan / keterangan / warna peran (kode tetap). */

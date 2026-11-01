@@ -35,7 +35,7 @@ export default function Page({ params, searchParams }: { params: { id: string };
           </Field>
           <Field label="Cabang">
             <select name="branch_id" defaultValue={x.branch_id ?? ''} className="input">
-              <option value="">Semua cabang (khusus pemilik — bisa berpindah cabang)</option>
+              <option value="">Semua cabang (pemilik / peran dengan izin kelola cabang — bisa berpindah cabang)</option>
               {listBranches().map(b => <option key={b.id} value={b.id}>{b.nama}{b.aktif ? '' : ' (nonaktif)'}</option>)}
             </select>
             <p className="text-xs text-slate-500 mt-1">Selain pemilik wajib memilih satu cabang; pengguna hanya melihat & mencatat data cabang tersebut.</p>

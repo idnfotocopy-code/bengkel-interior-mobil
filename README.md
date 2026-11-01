@@ -47,24 +47,25 @@ Alternatif bila belum ada data asli sama sekali: hentikan server, `npm run reset
 
 ### Matriks hak akses menu
 
-| Menu | Pemilik | Admin | Keuangan | Gudang | Teknisi |
-|---|:-:|:-:|:-:|:-:|:-:|
-| Dashboard | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Pelanggan | ✓ | ✓ | – | – | – |
-| Kendaraan | ✓ | ✓ | – | – | lihat |
-| Pesanan / WO | ✓ | ✓ | lihat semua | lihat | hanya tugasnya |
-| Jenis pekerjaan | ✓ | ✓ | – | – | – |
-| Pemeriksaan bersama (checklist PDF) | ✓ | ✓ | – | – | – |
-| Produksi | ✓ | ✓ | – | – | ✓ |
-| Persediaan | ✓ | ✓ | lihat | ✓ | – |
-| Keuangan | ✓ | ✓ (tanpa kas) | ✓ | – | – |
-| Laporan | ✓ | ✓ (tanpa laba rugi) | ✓ | stok | – |
-| Pengguna & Role | ✓ | – | – | – | – |
-| Hak akses (editor matriks) | ✓ | – | – | – | – |
-| Tanda tangan | ✓ | ✓ | – | – | – |
-| Pengaturan | ✓ | ✓ | – | – | – |
+| Menu | Pemilik | Admin | Owner | Keuangan | Gudang | Teknisi |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|
+| Dashboard | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Pelanggan | ✓ | ✓ | ✓ | – | – | – |
+| Kendaraan | ✓ | ✓ | ✓ | – | – | lihat |
+| Pesanan / WO | ✓ | ✓ | ✓ | lihat semua | lihat | hanya tugasnya |
+| Jenis pekerjaan | ✓ | ✓ | ✓ | – | – | – |
+| Pemeriksaan bersama (checklist PDF) | ✓ | ✓ | ✓ | – | – | – |
+| Produksi | ✓ | ✓ | ✓ | – | – | ✓ |
+| Persediaan | ✓ | ✓ | ✓ | lihat | ✓ | – |
+| Keuangan | ✓ | ✓ | ✓ | ✓ | – | – |
+| Laporan | ✓ | ✓ | ✓ | ✓ | stok | – |
+| Pengguna & Role | ✓ | ✓ | ✓ | – | – | – |
+| Hak akses (editor matriks) | ✓ | ✓ | ✓ | – | – | – |
+| Tanda tangan | ✓ | ✓ | ✓ | – | – | – |
+| Pengaturan | ✓ | ✓ | ✓ | – | – | – |
+| Cabang | ✓ | ✓ | ✓ | – | – | – |
 
-> Tabel di atas adalah **bawaan**. Pemilik dapat mengubah centang menu & aksi tiap peran di menu **Hak akses** (`/users/roles`); nilai efektif disimpan di database (`roles`, `role_perms`, `role_menus`, diisi sekali dari bawaan `lib/rbac.ts`). Pemilik selalu akses penuh; menu Pengguna, Hak akses dan izin kelola pengguna dikunci khusus pemilik; Dashboard selalu aktif untuk semua peran.
+> Tabel di atas adalah **bawaan**. Pemilik dapat mengubah centang menu & aksi tiap peran di menu **Hak akses** (`/users/roles`); nilai efektif disimpan di database (`roles`, `role_perms`, `role_menus`, diisi sekali dari bawaan `lib/rbac.ts`). Pemilik selalu akses penuh (di kode, tidak bisa dicabut). Peran **Admin** dan **Owner** bawaannya sama dengan pemilik (semua menu & aksi, termasuk Pengguna, Hak akses, Cabang, backup/restore) dan tetap bisa diubah di matriks; tombol **Samakan dengan pemilik** mengisi semua centang untuk peran mana pun (berguna untuk database lama yang matriks admin-nya masih bawaan versi sebelumnya). Peran dengan izin kelola pengguna dapat membuka Hak akses, tetapi hanya pemilik yang boleh mengelola akun berperan pemilik. Dashboard selalu aktif untuk semua peran.
 
 ### Matriks aksi Tambah / Edit / Hapus
 

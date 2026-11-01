@@ -26,7 +26,7 @@ export default function Page({ searchParams }: { searchParams: any }) {
   const fCab = fCab0;
   const roleOpts = ROLES.map(r => <option key={r} value={r}>{roleLabel(r)}</option>);
   return (<div>
-    <PageHeader title="Pengguna & Role" desc="Kelola akun login dan batasi akses tiap akun lewat peran (role). Hanya pemilik yang dapat membuka menu ini.">
+    <PageHeader title="Pengguna & Role" desc="Kelola akun login dan batasi akses tiap akun lewat peran (role). Bisa dibuka pemilik dan peran yang diberi menu ini (mis. admin/owner yang disamakan dengan pemilik).">
       <a className="btn btn-primary" href="#tambah">+ Tambah pengguna</a>
     </PageHeader>
     <Flash sp={searchParams} />
@@ -75,7 +75,7 @@ export default function Page({ searchParams }: { searchParams: any }) {
         <Field label="Nama lengkap"><input name="nama" className="input" required /></Field>
         <Field label="Role (hak akses)"><select name="role" className="input" defaultValue="admin">{roleOpts}</select></Field>
         <Field label="Cabang"><select name="branch_id" className="input" defaultValue={branches[0]?.id}>
-          <option value="">Semua cabang (khusus pemilik)</option>
+          <option value="">Semua cabang (pemilik / izin kelola cabang)</option>
           {branches.map(b => <option key={b.id} value={b.id}>{b.nama}{b.aktif ? '' : ' (nonaktif)'}</option>)}
         </select></Field>
         <Field label="Telepon"><input name="telepon" className="input" /></Field>

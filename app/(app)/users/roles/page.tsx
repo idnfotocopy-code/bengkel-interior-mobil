@@ -5,7 +5,7 @@ import { ROLES, MENUS, PERM_GROUPS, PERM_LABEL, LOCKED_PERMS, LOCKED_MENUS, ALWA
 import { Badge, Card, Flash, PageHeader, TableWrap } from '@/components/ui';
 import { ConfirmButton } from '@/components/Confirm';
 import { UserTabs } from '../tabs';
-import { saveMatrix, resetMatrix, saveRoleInfo, addRole, deleteRole } from './actions';
+import { saveMatrix, resetMatrix, samakanDenganPemilik, saveRoleInfo, addRole, deleteRole } from './actions';
 export const dynamic = 'force-dynamic';
 
 const COLORS = ['slate', 'violet', 'sky', 'green', 'amber', 'orange', 'red', 'teal'];
@@ -41,6 +41,7 @@ export default function Page({ searchParams }: { searchParams: any }) {
             <div className="text-xs"><span className="text-slate-500">Akun: </span>{us.length ? us.map((u: any) => u.username).join(', ') : <span className="italic text-slate-400">belum ada</span>}</div>
             <div className="flex flex-wrap gap-2">
               <button className="btn btn-sm">Simpan label</button>
+              {r.kode !== 'pemilik' && <ConfirmButton formAction={samakanDenganPemilik} msg={`Samakan hak akses ${r.label} dengan pemilik (semua menu & aksi, termasuk pengguna, hak akses, cabang, backup/restore/hapus data)?`}>👑 Samakan dengan pemilik</ConfirmButton>}
               {isBase(r.kode) && r.kode !== 'pemilik' && <ConfirmButton formAction={resetMatrix} msg={`Kembalikan hak akses ${r.label} ke bawaan aplikasi?`}>↺ Reset ke bawaan</ConfirmButton>}
               {!r.builtin && <ConfirmButton formAction={deleteRole} className="btn btn-sm text-red-700" msg={`Hapus peran ${r.label}? (harus tidak dipakai akun mana pun)`}>🗑 Hapus peran</ConfirmButton>}
             </div>
@@ -51,6 +52,7 @@ export default function Page({ searchParams }: { searchParams: any }) {
     <form action={saveMatrix} className="space-y-5">
       <div className="flex flex-wrap items-center gap-2 sticky top-0 z-10 bg-stone-50/95 py-2">
         <button className="btn btn-primary">💾 Simpan matriks hak akses</button>
+        {roles.some(r => r.kode === 'admin') && <ConfirmButton formAction={samakanDenganPemilik} msg="Samakan hak akses Admin dengan pemilik (semua menu & aksi)? Masih bisa diubah lagi di matriks.">👑 Samakan admin dengan pemilik</ConfirmButton>}
         <ConfirmButton formAction={resetMatrix} msg="Kembalikan SEMUA peran dasar ke hak akses bawaan aplikasi?">↺ Reset semua ke bawaan</ConfirmButton>
         <span className="text-xs text-slate-500">Sel berlatar kuning = berbeda dari bawaan aplikasi.</span>
       </div>
@@ -86,7 +88,7 @@ export default function Page({ searchParams }: { searchParams: any }) {
     </Card>
 
     <div className="mt-5 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900 space-y-1">
-      <div>👑 <b>Pemilik selalu akses penuh</b> dan tidak bisa dikunci: menu Pengguna & Hak akses serta izin kelola pengguna khusus pemilik. Menu Dashboard selalu aktif untuk semua peran agar akun tidak pernah tanpa menu.</div>
+      <div>👑 <b>Pemilik selalu akses penuh</b> dan tidak bisa dicabut. Peran lain (mis. <b>Admin</b> / <b>Owner</b>) boleh diberi semua menu &amp; aksi — termasuk Pengguna, Hak akses, Cabang, backup/restore — lewat tombol <b>Samakan dengan pemilik</b>, lalu tetap bisa dikurangi di matriks. Menu Dashboard selalu aktif untuk semua peran agar akun tidak pernah tanpa menu.</div>
       <div>🔒 Menu yang tidak diizinkan disembunyikan dari sidebar, halaman menolak akses lewat URL, tombol aksi disembunyikan, dan <b>setiap aksi dicek ulang di server</b> berdasarkan matriks ini.</div>
       <div>🧑‍🔧 Peran tanpa izin &quot;lihat semua pesanan&quot; hanya melihat pesanan yang ditugaskan kepadanya. Kode peran tidak berubah saat label diganti.</div>
     </div>

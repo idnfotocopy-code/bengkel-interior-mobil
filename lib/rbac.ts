@@ -2,10 +2,12 @@ import { db } from './db';
 import { nowStr } from './util';
 
 /** 5 peran dasar (kode tetap). Peran tambahan (custom) disimpan di tabel `roles`. */
-export const ROLES = ['pemilik', 'admin', 'keuangan', 'gudang', 'teknisi'] as const;
+export const ROLES = ['pemilik', 'admin', 'owner', 'keuangan', 'gudang', 'teknisi'] as const;
+/** Peran dasar yang bawaannya SAMA dengan pemilik (semua menu & aksi), tetapi tetap bisa diubah di matriks Hak akses. */
+export const FULL_DEFAULT_ROLES: string[] = ['admin', 'owner'];
 export type Role = typeof ROLES[number];
 /** Label bawaan; label efektif (bisa diganti di menu Hak akses) lewat roleLabel(). */
-export const DEFAULT_ROLE_LABEL: Record<string, string> = { pemilik: 'Pemilik', admin: 'Admin', keuangan: 'Keuangan', gudang: 'Gudang', teknisi: 'Teknisi' };
+export const DEFAULT_ROLE_LABEL: Record<string, string> = { pemilik: 'Pemilik', admin: 'Admin', owner: 'Owner', keuangan: 'Keuangan', gudang: 'Gudang', teknisi: 'Teknisi' };
 
 export type MenuKey = 'dashboard' | 'pelanggan' | 'kendaraan' | 'pesanan' | 'jenis-pekerjaan' | 'checklist' | 'tanda-tangan' | 'produksi' | 'persediaan' | 'keuangan' | 'laporan' | 'users' | 'hak-akses' | 'cabang' | 'pengaturan';
 export const MENUS: { key: MenuKey; href: string; label: string; icon: string; group: string; roles: Role[] }[] = [
@@ -26,7 +28,7 @@ export const MENUS: { key: MenuKey; href: string; label: string; icon: string; g
   { key: 'pengaturan', href: '/pengaturan', label: 'Pengaturan', icon: '⚙️', group: 'Sistem', roles: ['pemilik', 'admin'] },
 ];
 /** Menu bawaan (default) per peran — sumber seed awal matriks yang bisa diedit. */
-export const defaultMenu = (role: string, key: MenuKey) => !!MENUS.find(m => m.key === key)?.roles.includes(role as Role);
+export const defaultMenu = (role: string, key: MenuKey) => FULL_DEFAULT_ROLES.includes(role) || !!MENUS.find(m => m.key === key)?.roles.includes(role as Role);
 
 /** Izin aksi bawaan — mengikuti matriks hak akses pada rancangan (bab 7). Nilai efektif dibaca dari DB (menu Hak akses). */
 const PERMS = {
@@ -70,11 +72,15 @@ const PERMS = {
 export type Perm = keyof typeof PERMS;
 export const PERM_LIST = PERMS;
 export const ALL_PERMS = Object.keys(PERMS) as Perm[];
-export const defaultCan = (role: string, p: Perm) => (PERMS[p] as readonly string[]).includes(role);
+export const defaultCan = (role: string, p: Perm) => FULL_DEFAULT_ROLES.includes(role) || (PERMS[p] as readonly string[]).includes(role);
 
-/** Dikunci khusus pemilik (tidak bisa diberikan ke peran lain) supaya pemilik tidak bisa dikunci keluar. */
-export const LOCKED_PERMS: Perm[] = ['users.kelola'];
-export const LOCKED_MENUS: MenuKey[] = ['users', 'hak-akses'];
+/**
+ * Tidak ada lagi izin/menu yang dikunci khusus pemilik: semuanya (termasuk kelola pengguna & Hak akses)
+ * boleh diberikan ke peran lain, mis. admin/owner disamakan dengan pemilik.
+ * Pemilik sendiri tetap akses penuh di kode (tidak disimpan di matriks, tidak bisa dicabut).
+ */
+export const LOCKED_PERMS: Perm[] = [];
+export const LOCKED_MENUS: MenuKey[] = [];
 /** Selalu aktif untuk semua peran supaya akun tidak pernah tanpa menu setelah login. */
 export const ALWAYS_MENUS: MenuKey[] = ['dashboard'];
 
@@ -92,7 +98,13 @@ export function ensureRbac() {
   const d = db();
   const now = nowStr();
   d.transaction(() => {
-    ROLES.forEach((r, i) => d.prepare('INSERT OR IGNORE INTO roles(kode,label,deskripsi,warna,builtin,urutan,created_at) VALUES(?,?,?,?,1,?,?)').run(r, DEFAULT_ROLE_LABEL[r], ROLE_DESC[r], ROLE_COLOR[r], (i + 1) * 10, now));
+    const fresh: string[] = [];
+    ROLES.forEach((r, i) => { if (d.prepare('INSERT OR IGNORE INTO roles(kode,label,deskripsi,warna,builtin,urutan,created_at) VALUES(?,?,?,?,1,?,?)').run(r, DEFAULT_ROLE_LABEL[r], ROLE_DESC[r], ROLE_COLOR[r], r === 'owner' ? 25 : (i + 1) * 10, now).changes) fresh.push(r); });
+    // Peran dasar yang baru ditambahkan di versi ini (mis. owner) langsung diberi matriks bawaannya
+    for (const r of fresh) if (r !== 'pemilik') {
+      for (const p of ALL_PERMS) if (defaultCan(r, p)) d.prepare('INSERT OR IGNORE INTO role_perms(role,perm) VALUES(?,?)').run(r, p);
+      for (const m of MENUS) if (defaultMenu(r, m.key) || ALWAYS_MENUS.includes(m.key)) d.prepare('INSERT OR IGNORE INTO role_menus(role,menu) VALUES(?,?)').run(r, m.key);
+    }
     const getKnown = (k: string): Set<string> => { const r = d.prepare('SELECT value FROM settings WHERE key=?').get(k) as any; try { return new Set(r ? JSON.parse(r.value) : []); } catch { return new Set(); } };
     const setKnown = (k: string, v: string[]) => d.prepare('INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run(k, JSON.stringify(v));
     const kp = getKnown('rbac_known_perms'), km = getKnown('rbac_known_menus');
@@ -180,12 +192,13 @@ export const PERM_LABEL: Record<Perm, string> = {
 /** Keterangan & warna badge tiap peran (halaman Pengguna & Role). */
 export const ROLE_DESC: Record<Role, string> = {
   pemilik: 'Akses penuh: semua menu & aksi di semua cabang, kelola cabang, pengguna/peran, akun kas, laporan laba rugi, serta backup / restore / hapus data transaksi.',
-  admin: 'Operasional harian: pelanggan, kendaraan, pesanan, produksi, persediaan, pembayaran & invoice, pengaturan. Tanpa kelola pengguna, akun kas, dan laba rugi.',
+  admin: 'Bawaan: akses penuh seperti pemilik (semua menu & aksi, termasuk pengguna & hak akses). Akses dapat disamakan dengan pemilik dan diubah/dikurangi di matriks Hak akses.',
+  owner: 'Owner (pemilik usaha tambahan): bawaan akses penuh seperti pemilik. Akses dapat disamakan dengan pemilik dan diubah/dikurangi di matriks Hak akses.',
   keuangan: 'Pembayaran, invoice, pengeluaran, akun kas & bank, serta laporan keuangan. Hanya melihat pesanan & stok.',
   gudang: 'Master bahan & pemasok, stok masuk, penyesuaian/opname, pemakaian bahan, dan laporan stok.',
   teknisi: 'Hanya pesanan yang ditugaskan kepadanya: ubah status kerja, catat progres & pemakaian bahan.',
 };
-export const ROLE_COLOR: Record<string, string> = { pemilik: 'violet', admin: 'sky', keuangan: 'green', gudang: 'amber', teknisi: 'orange' };
+export const ROLE_COLOR: Record<string, string> = { pemilik: 'violet', admin: 'sky', owner: 'teal', keuangan: 'green', gudang: 'amber', teknisi: 'orange' };
 
 /** Kelompok izin per modul untuk matriks yang mudah dibaca. */
 export const PERM_GROUPS: { label: string; icon: string; perms: Perm[] }[] = [

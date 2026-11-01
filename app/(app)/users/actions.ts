@@ -3,10 +3,12 @@ import { redirect } from 'next/navigation';
 import bcrypt from 'bcryptjs';
 import { requirePerm, audit } from '@/lib/auth';
 import { insert, update, one, run } from '@/lib/db';
-import { roleKodes } from '@/lib/rbac';
+import { roleKodes, can } from '@/lib/rbac';
 import { s, nowStr, withMsg } from '@/lib/util';
 
 const safeBack = (b: string) => (/^\/users(\/[a-z0-9]+)?$/.test(b) ? b : '/users');
+/** Hanya pemilik yang boleh membuat / mengubah / menonaktifkan / menghapus akun pemilik (akses penuh permanen). */
+const guardPemilik = (u: any, back: string, ...roles: (string | undefined)[]) => { if (u.role !== 'pemilik' && roles.includes('pemilik')) redirect(withMsg(back, 'err', 'Hanya pemilik yang dapat mengelola akun berperan pemilik.')); };
 const lastOwner = (x: any) => x.role === 'pemilik' && x.aktif && one("SELECT COUNT(*) n FROM users WHERE role='pemilik' AND aktif=1").n <= 1;
 
 export async function saveUser(fd: FormData) {
@@ -19,8 +21,9 @@ export async function saveUser(fd: FormData) {
   // Cabang: wajib untuk selain pemilik; pemilik boleh kosong (= semua cabang, bisa berpindah cabang)
   const branch_id = Number(fd.get('branch_id') || 0) || null;
   if (branch_id && !one('SELECT id FROM branches WHERE id=?', branch_id)) redirect(withMsg(back, 'err', 'Cabang tidak valid.'));
-  if (role !== 'pemilik' && !branch_id) redirect(withMsg(back, 'err', 'Pilih cabang untuk pengguna selain pemilik (hanya pemilik yang boleh "Semua cabang").'));
-  if (id === u.id && (!aktif || role !== 'pemilik')) redirect(withMsg(back, 'err', 'Anda tidak dapat menonaktifkan atau menurunkan peran akun sendiri.'));
+  if (role !== 'pemilik' && !can(role, 'cabang.kelola') && !branch_id) redirect(withMsg(back, 'err', 'Pilih cabang untuk pengguna ini ("Semua cabang" hanya untuk pemilik atau peran dengan izin kelola cabang).'));
+  guardPemilik(u, back, role, id ? one('SELECT role FROM users WHERE id=?', id)?.role : undefined);
+  if (id === u.id && (!aktif || role !== u.role)) redirect(withMsg(back, 'err', 'Anda tidak dapat menonaktifkan atau menurunkan peran akun sendiri.'));
   if (id) {
     const old = one('SELECT * FROM users WHERE id=?', id);
     if (!old) redirect(withMsg(back, 'err', 'Pengguna tidak ditemukan.'));
@@ -53,6 +56,7 @@ export async function deleteUser(fd: FormData) {
   const x = one('SELECT * FROM users WHERE id=?', id);
   if (!x) redirect(withMsg('/users', 'err', 'Pengguna tidak ditemukan.'));
   if (id === u.id) redirect(withMsg('/users', 'err', 'Anda tidak dapat menghapus akun sendiri.'));
+  guardPemilik(u, '/users', x.role);
   if (x.role === 'pemilik' && x.aktif && one("SELECT COUNT(*) n FROM users WHERE role='pemilik' AND aktif=1").n <= 1) redirect(withMsg('/users', 'err', 'Harus ada minimal satu pemilik aktif.'));
   const used = one(`SELECT
     (SELECT COUNT(*) FROM work_orders WHERE teknisi_id=? OR pj_id=? OR created_by=?) +
@@ -79,6 +83,7 @@ export async function toggleUser(fd: FormData) {
   const x = one('SELECT * FROM users WHERE id=?', id);
   if (!x) redirect(withMsg(back, 'err', 'Pengguna tidak ditemukan.'));
   if (id === u.id) redirect(withMsg(back, 'err', 'Anda tidak dapat menonaktifkan akun sendiri.'));
+  guardPemilik(u, back, x.role);
   if (x.aktif && lastOwner(x)) redirect(withMsg(back, 'err', 'Harus ada minimal satu pemilik aktif.'));
   const aktif = x.aktif ? 0 : 1;
   run('UPDATE users SET aktif=? WHERE id=?', aktif, id);
