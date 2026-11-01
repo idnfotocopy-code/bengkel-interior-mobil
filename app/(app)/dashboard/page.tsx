@@ -6,28 +6,30 @@ import { rp, num, tgl, monthRange, today } from '@/lib/util';
 import { Stat, Card, Flash, PageHeader, StatusBadge, Empty, TableWrap, Badge } from '@/components/ui';
 import { ROLE_LABEL } from '@/lib/rbac';
 import { WO_STATUSES } from '@/lib/constants';
+import { activeBranch } from '@/lib/branch';
 export const dynamic = 'force-dynamic';
 
 export default function Dashboard({ searchParams }: { searchParams: any }) {
   const u = requireUser('dashboard');
   const { from, to } = monthRange();
-  const f = periodFinance(from, to);
-  const piutang = receivables();
-  const aktifWhere = "status NOT IN ('Selesai','Dibatalkan')";
-  const aktif = one(`SELECT COUNT(*) n FROM work_orders WHERE ${aktifWhere}`).n;
-  const selesaiBulan = one("SELECT COUNT(*) n FROM work_orders WHERE status='Selesai' AND tgl_selesai BETWEEN ? AND ?", from, to).n;
-  const low = all('SELECT * FROM materials WHERE aktif=1 AND stok<=minimum ORDER BY kode');
-  const perStatus = all(`SELECT status, COUNT(*) n FROM work_orders WHERE ${aktifWhere} GROUP BY status`);
-  const telat = all(`SELECT w.*, c.nama pelanggan, v.nopol FROM work_orders w JOIN customers c ON c.id=w.customer_id JOIN vehicles v ON v.id=w.vehicle_id WHERE ${aktifWhere} AND target_selesai < ? ORDER BY target_selesai`, today());
+  const cabang = activeBranch(u), cab = Number(cabang.id);
+  const f = periodFinance(from, to, cab);
+  const piutang = receivables(cab);
+  const aktifWhere = "w.status NOT IN ('Selesai','Dibatalkan') AND w.branch_id=" + cab;
+  const aktif = one(`SELECT COUNT(*) n FROM work_orders w WHERE ${aktifWhere}`).n;
+  const selesaiBulan = one("SELECT COUNT(*) n FROM work_orders WHERE branch_id=? AND status='Selesai' AND tgl_selesai BETWEEN ? AND ?", cab, from, to).n;
+  const low = all('SELECT * FROM materials WHERE branch_id=? AND aktif=1 AND stok<=minimum ORDER BY kode', cab);
+  const perStatus = all(`SELECT w.status, COUNT(*) n FROM work_orders w WHERE ${aktifWhere} GROUP BY w.status`);
+  const telat = all(`SELECT w.*, c.nama pelanggan, v.nopol FROM work_orders w JOIN customers c ON c.id=w.customer_id JOIN vehicles v ON v.id=w.vehicle_id WHERE ${aktifWhere} AND w.target_selesai < ? ORDER BY w.target_selesai`, today());
   const isTek = u.role === 'teknisi';
   const woRows = all(`SELECT w.*, c.nama pelanggan, v.nopol, v.merek, v.tipe, t.nama teknisi FROM work_orders w JOIN customers c ON c.id=w.customer_id JOIN vehicles v ON v.id=w.vehicle_id LEFT JOIN users t ON t.id=w.teknisi_id
     WHERE ${aktifWhere} ${isTek ? 'AND w.teknisi_id=' + Number(u.id) : ''} ORDER BY w.target_selesai LIMIT 10`);
-  const nilaiStok = one('SELECT COALESCE(SUM(stok*harga_beli),0) v FROM materials WHERE aktif=1').v;
-  const mutasi = all('SELECT s.*, m.nama, m.satuan, m.kode FROM stock_movements s JOIN materials m ON m.id=s.material_id ORDER BY s.id DESC LIMIT 8');
+  const nilaiStok = one('SELECT COALESCE(SUM(stok*harga_beli),0) v FROM materials WHERE branch_id=? AND aktif=1', cab).v;
+  const mutasi = all('SELECT s.*, m.nama, m.satuan, m.kode FROM stock_movements s JOIN materials m ON m.id=s.material_id WHERE s.branch_id=? ORDER BY s.id DESC LIMIT 8', cab);
   const periodLabel = `${tgl(from)} – ${tgl(to)}`;
 
   return (<div>
-    <PageHeader title={`Dashboard ${ROLE_LABEL[u.role]}`} desc={`Halo, ${u.nama}. Semua angka dihitung langsung dari transaksi di sistem · periode ${periodLabel}.`} />
+    <PageHeader title={`Dashboard ${ROLE_LABEL[u.role]}`} desc={`Halo, ${u.nama}. Cabang ${cabang.nama}. Semua angka dihitung langsung dari transaksi di sistem · periode ${periodLabel}.`} />
     <Flash sp={searchParams} />
 
     {u.role === 'pemilik' && (<div className="grid gap-3 grid-cols-2 lg:grid-cols-5 mb-5">
@@ -50,10 +52,10 @@ export default function Dashboard({ searchParams }: { searchParams: any }) {
       <Stat label="Piutang" value={rp(piutang.total)} sub={`${piutang.rows.length} invoice`} color="accent" href="/keuangan?tab=piutang" />
     </div>)}
     {u.role === 'gudang' && (<div className="grid gap-3 grid-cols-2 lg:grid-cols-4 mb-5">
-      <Stat label="Jenis bahan" value={one('SELECT COUNT(*) n FROM materials WHERE aktif=1').n} href="/persediaan" />
+      <Stat label="Jenis bahan" value={one('SELECT COUNT(*) n FROM materials WHERE branch_id=? AND aktif=1', cab).n} href="/persediaan" />
       <Stat label="Stok menipis" value={low.length} color="red" href="/persediaan?filter=menipis" />
       <Stat label="Nilai persediaan" value={rp(nilaiStok)} color="green" />
-      <Stat label="Pesanan menunggu bahan" value={one("SELECT COUNT(*) n FROM work_orders WHERE status='Menunggu bahan'").n} color="accent" href="/pesanan?status=Menunggu+bahan" />
+      <Stat label="Pesanan menunggu bahan" value={one("SELECT COUNT(*) n FROM work_orders WHERE branch_id=? AND status='Menunggu bahan'", cab).n} color="accent" href="/pesanan?status=Menunggu+bahan" />
     </div>)}
     {isTek && (<div className="grid gap-3 grid-cols-2 lg:grid-cols-3 mb-5">
       <Stat label="Tugas aktif saya" value={woRows.length} href="/produksi" color="sky" />

@@ -11,6 +11,7 @@ import { Card, Flash, PageHeader, Empty, TableWrap, StatusBadge, InvBadge, Field
 import { ConfirmButton } from '@/components/Confirm';
 import { updateWO, addItem, updateItem, deleteItem, changeStatus, cancelWO, deleteWO, useMaterial, cancelUsage } from '../actions';
 import { ProgressActions } from '@/components/ProgressActions';
+import { getBranch } from '@/lib/branch';
 import { addPayment, deletePayment, createInvoice } from '../../keuangan/actions';
 export const dynamic = 'force-dynamic';
 
@@ -27,11 +28,12 @@ export default function Page({ params, searchParams }: { params: { id: string };
   const inv = activeInvoice(w.id);
   const hist = all('SELECT h.*, us.nama oleh FROM wo_status_history h LEFT JOIN users us ON us.id=h.user_id WHERE h.wo_id=? ORDER BY h.id DESC', w.id);
   const prog = all('SELECT p.*, us.nama oleh FROM work_progress p LEFT JOIN users us ON us.id=p.user_id WHERE p.wo_id=? ORDER BY p.id DESC', w.id);
-  const mats = all('SELECT id, kode, nama, satuan, stok FROM materials WHERE aktif=1 ORDER BY kode');
-  const teknisi = all("SELECT id, nama FROM users WHERE role='teknisi' AND aktif=1 ORDER BY nama");
+  const mats = all('SELECT id, kode, nama, satuan, stok FROM materials WHERE aktif=1 AND branch_id=? ORDER BY kode', w.branch_id);
+  const teknisi = all("SELECT id, nama FROM users WHERE role='teknisi' AND aktif=1 AND (branch_id=? OR branch_id IS NULL) ORDER BY nama", w.branch_id);
+  const cabang = getBranch(w.branch_id);
   const jobs = all<{ nama: string }>('SELECT nama FROM job_types WHERE aktif=1 ORDER BY urutan, nama').map(j => j.nama);
   const jobLegacy = w.jenis_pekerjaan && !jobs.includes(w.jenis_pekerjaan) ? w.jenis_pekerjaan : '';
-  const accounts = all('SELECT * FROM cash_accounts WHERE aktif=1');
+  const accounts = all('SELECT * FROM cash_accounts WHERE aktif=1 AND branch_id=?', w.branch_id);
   const kelola = can(u.role, 'pesanan.kelola'), harga = can(u.role, 'pesanan.harga');
   const seeMoney = !['teknisi', 'gudang'].includes(u.role);
   const seeCost = ['pemilik', 'keuangan'].includes(u.role);
@@ -41,7 +43,7 @@ export default function Page({ params, searchParams }: { params: { id: string };
   const stepIdx = WO_STATUSES.indexOf(w.status);
 
   return (<div id="top">
-    <PageHeader title={`${w.nomor} · ${w.jenis_pekerjaan || '-'}`} desc={`${w.pelanggan} (${w.kode}) · ${w.nopol} ${w.merek} ${w.tipe} ${w.tahun || ''}`}>
+    <PageHeader title={`${w.nomor} · ${w.jenis_pekerjaan || '-'}`} desc={`Cabang ${cabang?.nama || '-'} · ${w.pelanggan} (${w.kode}) · ${w.nopol} ${w.merek} ${w.tipe} ${w.tahun || ''}`}>
       <Link href="/pesanan" className="btn">← Daftar</Link>
       {can(u.role, 'dokumen.pesanan') && <>
         {seeMoney && <a className="btn" href={pdf('penawaran')} target="_blank">📄 Surat Penawaran</a>}

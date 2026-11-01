@@ -7,6 +7,7 @@ import { ConfirmButton } from '@/components/Confirm';
 import { tglJam } from '@/lib/util';
 import { Badge, Card, Flash, PageHeader, Field, TableWrap } from '@/components/ui';
 import { saveUser, deleteUser, toggleUser } from '../actions';
+import { listBranches } from '@/lib/branch';
 export const dynamic = 'force-dynamic';
 
 export default function Page({ params, searchParams }: { params: { id: string }; searchParams: any }) {
@@ -31,6 +32,13 @@ export default function Page({ params, searchParams }: { params: { id: string };
           <Field label="Role (hak akses)">
             {self ? <><input type="hidden" name="role" value={x.role} /><input value={ROLE_LABEL[x.role]} disabled className="input bg-stone-100" /><p className="text-xs text-slate-500 mt-1">Anda tidak dapat mengubah role akun sendiri.</p></>
               : <select name="role" defaultValue={x.role} className="input">{ROLES.map(r => <option key={r} value={r}>{ROLE_LABEL[r]} — {ROLE_DESC[r].split(':')[0].split('.')[0]}</option>)}</select>}
+          </Field>
+          <Field label="Cabang">
+            <select name="branch_id" defaultValue={x.branch_id ?? ''} className="input">
+              <option value="">Semua cabang (khusus pemilik — bisa berpindah cabang)</option>
+              {listBranches().map(b => <option key={b.id} value={b.id}>{b.nama}{b.aktif ? '' : ' (nonaktif)'}</option>)}
+            </select>
+            <p className="text-xs text-slate-500 mt-1">Selain pemilik wajib memilih satu cabang; pengguna hanya melihat & mencatat data cabang tersebut.</p>
           </Field>
           {self ? <input type="hidden" name="aktif" value="1" />
             : <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="aktif" value="1" defaultChecked={!!x.aktif} /> Akun aktif (boleh login)</label>}

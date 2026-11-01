@@ -5,13 +5,14 @@ import { one, run, insert } from './db';
 import { nowStr } from './util';
 import { canMenu, can, MenuKey, Perm } from './rbac';
 
-export type User = { id: number; nama: string; username: string; role: string };
+/** branch_id NULL = boleh semua cabang (pemilik) — cabang aktif dipilih lewat cookie, lihat lib/branch.ts */
+export type User = { id: number; nama: string; username: string; role: string; branch_id: number | null };
 export const COOKIE = 'bim_sid';
 
 export function currentUser(): User | null {
   const t = cookies().get(COOKIE)?.value;
   if (!t) return null;
-  const u = one<User>('SELECT u.id,u.nama,u.username,u.role FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token=? AND s.expires_at>? AND u.aktif=1', t, Date.now());
+  const u = one<User>('SELECT u.id,u.nama,u.username,u.role,u.branch_id FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token=? AND s.expires_at>? AND u.aktif=1', t, Date.now());
   return u || null;
 }
 export function requireUser(menu?: MenuKey): User {

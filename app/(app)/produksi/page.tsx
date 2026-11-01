@@ -8,6 +8,7 @@ import { uploadUrl } from '@/lib/upload';
 import { Card, Flash, PageHeader, Empty, StatusBadge } from '@/components/ui';
 import { addProgress } from './actions';
 import { ProgressActions } from '@/components/ProgressActions';
+import { activeBranchId, canAccessBranch } from '@/lib/branch';
 import { changeStatus, useMaterial } from '../pesanan/actions';
 export const dynamic = 'force-dynamic';
 
@@ -17,12 +18,14 @@ export default function Page({ searchParams }: { searchParams: any }) {
   const u = requireUser('produksi');
   const semua = can(u.role, 'pesanan.semua');
   const woF = Number(searchParams?.wo) || 0;
+  const cab = activeBranchId(u);
   const rows = all(`SELECT w.*, c.nama pelanggan, v.nopol, v.merek, v.tipe, v.foto, t.nama teknisi,
       (SELECT persen FROM work_progress p WHERE p.wo_id=w.id AND persen IS NOT NULL ORDER BY id DESC LIMIT 1) persen
     FROM work_orders w JOIN customers c ON c.id=w.customer_id JOIN vehicles v ON v.id=w.vehicle_id LEFT JOIN users t ON t.id=w.teknisi_id
-    WHERE ${woF ? 'w.id=?' : `w.status IN (${PROD.map(() => '?').join(',')})`} ${semua ? '' : 'AND w.teknisi_id=?'}
-    ORDER BY w.target_selesai`, ...(woF ? [woF] : PROD), ...(semua ? [] : [u.id]));
-  const mats = all('SELECT id, kode, nama, satuan, stok FROM materials WHERE aktif=1 ORDER BY kode');
+    WHERE ${woF ? 'w.id=?' : `w.branch_id=${Number(cab)} AND w.status IN (${PROD.map(() => '?').join(',')})`} ${semua ? '' : 'AND w.teknisi_id=?'}
+    ORDER BY w.target_selesai`, ...(woF ? [woF] : PROD), ...(semua ? [] : [u.id])).filter((w: any) => canAccessBranch(u, w.branch_id));
+  const matBranch = woF && rows[0] ? rows[0].branch_id : cab;
+  const mats = all('SELECT id, kode, nama, satuan, stok FROM materials WHERE aktif=1 AND branch_id=? ORDER BY kode', matBranch);
   const statusOpts = can(u.role, 'status.semua') ? WO_STATUSES : TEKNISI_STATUSES;
   return (<div>
     <PageHeader title={u.role === 'teknisi' ? 'Tugas saya' : 'Produksi'} desc="Pekerjaan yang sedang berjalan: catat progres, foto, pemakaian bahan, dan perbarui status.">

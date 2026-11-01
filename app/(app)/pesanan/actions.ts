@@ -7,6 +7,14 @@ import { woForUser } from '@/lib/access';
 import { useMaterial as useMat, cancelUsage as cancelUse, syncInvoiceStatus } from '@/lib/biz';
 import { WO_STATUSES, TEKNISI_STATUSES, WO_CANCELLED } from '@/lib/constants';
 import { s, n, q, nowStr, today, addDays, withMsg } from '@/lib/util';
+import { guardRow } from '@/lib/branch';
+
+/** Teknisi harus dari cabang pesanan (atau akun tanpa cabang tetap). */
+function teknisiOk(teknisiId: number | null, branchId: number) {
+  if (!teknisiId) return true;
+  const t = one('SELECT branch_id FROM users WHERE id=?', teknisiId);
+  return !!t && (t.branch_id == null || t.branch_id === branchId);
+}
 
 const go = (id: number, msg: string, err = false): never => redirect(withMsg(`/pesanan/${id}`, err ? 'err' : 'ok', msg));
 
@@ -15,13 +23,16 @@ export async function createWO(fd: FormData) {
   const customer_id = Number(fd.get('customer_id')), vehicle_id = Number(fd.get('vehicle_id'));
   const v = one('SELECT * FROM vehicles WHERE id=? AND customer_id=?', vehicle_id, customer_id);
   if (!v) redirect(`/pesanan/baru?err=${q('Pilih pelanggan dan kendaraan miliknya.')}`);
+  guardRow(u, 'customers', customer_id, '/pesanan/baru');
+  const branch_id = one('SELECT branch_id FROM customers WHERE id=?', customer_id).branch_id;
+  if (!teknisiOk(Number(fd.get('teknisi_id')) || null, branch_id)) redirect(`/pesanan/baru?err=${q('Teknisi harus dari cabang yang sama dengan pesanan.')}`);
   if (!s(fd, 'jenis_pekerjaan')) redirect(`/pesanan/baru?err=${q('Pilih jenis pekerjaan.')}`);
   const tgl_masuk = s(fd, 'tgl_masuk') || today();
   const status = WO_STATUSES.includes(s(fd, 'status') as any) ? s(fd, 'status') : 'Konsultasi';
   const id = tx(() => {
     const nomor = nextNumber('BIM', 'work_orders', Number(tgl_masuk.slice(0, 4)));
     const id = insert('work_orders', {
-      nomor, customer_id, vehicle_id, jenis_pekerjaan: s(fd, 'jenis_pekerjaan'), deskripsi: s(fd, 'deskripsi'), tgl_masuk, target_selesai: s(fd, 'target_selesai') || addDays(tgl_masuk, 7),
+      nomor, branch_id, customer_id, vehicle_id, jenis_pekerjaan: s(fd, 'jenis_pekerjaan'), deskripsi: s(fd, 'deskripsi'), tgl_masuk, target_selesai: s(fd, 'target_selesai') || addDays(tgl_masuk, 7),
       status, teknisi_id: Number(fd.get('teknisi_id')) || null, pj_id: u.id, catatan: s(fd, 'catatan'), created_by: u.id, created_at: nowStr(), updated_at: nowStr(),
     });
     const desc = s(fd, 'item_deskripsi');
@@ -39,6 +50,8 @@ export async function updateWO(fd: FormData) {
   const u = requirePerm('pesanan.kelola');
   const id = Number(fd.get('id'));
   const data: any = { jenis_pekerjaan: s(fd, 'jenis_pekerjaan'), deskripsi: s(fd, 'deskripsi'), tgl_masuk: s(fd, 'tgl_masuk'), target_selesai: s(fd, 'target_selesai'), teknisi_id: Number(fd.get('teknisi_id')) || null, catatan: s(fd, 'catatan'), kondisi_serah: s(fd, 'kondisi_serah'), updated_at: nowStr() };
+  guardRow(u, 'work_orders', id, '/pesanan');
+  if (!teknisiOk(data.teknisi_id, one('SELECT branch_id FROM work_orders WHERE id=?', id)?.branch_id)) go(id, 'Teknisi harus dari cabang yang sama dengan pesanan.', true);
   if (can(u.role, 'pesanan.harga')) Object.assign(data, { diskon: n(fd, 'diskon'), biaya_tenaga_kerja: n(fd, 'biaya_tenaga_kerja'), biaya_ops: n(fd, 'biaya_ops') });
   update('work_orders', id, data);
   audit(u, 'UBAH', 'work_orders', id, JSON.stringify(data));
@@ -48,6 +61,7 @@ export async function updateWO(fd: FormData) {
 export async function addItem(fd: FormData) {
   const u = requirePerm('pesanan.harga');
   const id = Number(fd.get('wo_id'));
+  guardRow(u, 'work_orders', id, '/pesanan');
   const desc = s(fd, 'deskripsi');
   if (!desc) go(id, 'Deskripsi item wajib diisi.', true);
   insert('work_order_items', { wo_id: id, jenis: s(fd, 'jenis') === 'barang' ? 'barang' : 'jasa', deskripsi: desc, qty: n(fd, 'qty') || 1, satuan: s(fd, 'satuan') || 'paket', harga: n(fd, 'harga') });
@@ -58,6 +72,7 @@ export async function addItem(fd: FormData) {
 export async function deleteItem(fd: FormData) {
   const u = requirePerm('pesanan.harga');
   const id = Number(fd.get('wo_id')), item = Number(fd.get('item_id'));
+  guardRow(u, 'work_orders', id, '/pesanan');
   const it = one('SELECT * FROM work_order_items WHERE id=? AND wo_id=?', item, id);
   run('DELETE FROM work_order_items WHERE id=? AND wo_id=?', item, id);
   audit(u, 'HAPUS_ITEM', 'work_orders', id, it?.deskripsi);
@@ -68,6 +83,7 @@ export async function deleteItem(fd: FormData) {
 export async function updateItem(fd: FormData) {
   const u = requirePerm('pesanan.harga');
   const id = Number(fd.get('wo_id')), item = Number(fd.get('item_id'));
+  guardRow(u, 'work_orders', id, '/pesanan');
   const it = one('SELECT * FROM work_order_items WHERE id=? AND wo_id=?', item, id);
   if (!it) go(id, 'Item tidak ditemukan.', true);
   const desc = s(fd, 'deskripsi');
@@ -86,6 +102,7 @@ export async function deleteWO(fd: FormData) {
   const id = Number(fd.get('wo_id'));
   const wo = one('SELECT * FROM work_orders WHERE id=?', id);
   if (!wo) redirect(withMsg('/pesanan', 'err', 'Pesanan tidak ditemukan.'));
+  guardRow(u, 'work_orders', id, '/pesanan');
   const c = one(`SELECT (SELECT COUNT(*) FROM payments WHERE wo_id=?) bayar, (SELECT COUNT(*) FROM invoices WHERE wo_id=?) inv, (SELECT COUNT(*) FROM material_usage WHERE wo_id=?) bahan, (SELECT COUNT(*) FROM stock_movements WHERE wo_id=?) mutasi`, id, id, id, id);
   if (c.bayar || c.inv || c.bahan || c.mutasi) {
     const back = s(fd, 'back') || `/pesanan/${id}`;
@@ -125,6 +142,7 @@ export async function cancelWO(fd: FormData) {
   const id = Number(fd.get('wo_id'));
   const wo = one('SELECT * FROM work_orders WHERE id=?', id);
   if (!wo) redirect(withMsg('/pesanan', 'err', 'Pesanan tidak ditemukan.'));
+  guardRow(u, 'work_orders', id, '/pesanan');
   const alasan = s(fd, 'alasan');
   if (!alasan) redirect(withMsg(s(fd, 'back') || `/pesanan/${id}`, 'err', 'Alasan pembatalan wajib diisi.'));
   tx(() => {
@@ -150,6 +168,7 @@ export async function useMaterial(fd: FormData) {
 export async function cancelUsage(fd: FormData) {
   const u = requirePerm('bahan.batal');
   const id = Number(fd.get('wo_id'));
+  guardRow(u, 'work_orders', id, '/pesanan');
   try { cancelUse(Number(fd.get('usage_id')), u.id); } catch (e: any) { go(id, e.message, true); }
   audit(u, 'BATAL_PAKAI', 'work_orders', id, String(fd.get('usage_id')));
   go(id, 'Pemakaian dibatalkan; stok dikembalikan dan tercatat sebagai koreksi.');

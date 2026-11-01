@@ -89,6 +89,17 @@ Tombol yang tidak diizinkan disembunyikan, dan setiap server action memeriksa iz
 
 Matriks lengkap per izin juga tampil di menu **Pengguna & Role → Role & hak akses**.
 
+## Multi cabang
+
+Aplikasi mendukung beberapa cabang dalam satu database. Cabang awal: **Bekasi (BKS)** dan **Jakarta (JKT)**.
+
+- **Master Cabang** (menu *Sistem → Cabang*, khusus pemilik): tambah, edit, nonaktifkan, dan hapus cabang. Cabang baru otomatis mendapat akun **Kas Tunai** (saldo 0). Hapus hanya bisa bila cabang belum punya data (pelanggan, pesanan, bahan, mutasi, invoice, pembayaran, pengeluaran, pengguna, atau akun kas yang sudah dipakai); bila sudah ada, gunakan **Nonaktifkan**.
+- **Data per cabang:** pelanggan (beserta kendaraannya), pesanan, bahan & stok, mutasi stok, akun kas, invoice, pembayaran, dan pengeluaran. Semua daftar, dashboard, laporan, keuangan, dan persediaan hanya menampilkan data **cabang aktif**. Data baru otomatis tersimpan ke cabang aktif (terlihat dari badge "Disimpan ke cabang" pada formulir). Pembayaran/invoice mengikuti cabang pesanan; mutasi stok mengikuti cabang bahan.
+- **Data global:** pengaturan/identitas usaha, logo, jenis pekerjaan, dan pemasok. Nomor pesanan, invoice, kuitansi, dan ID pelanggan tetap berurutan secara global. Kode bahan unik per cabang.
+- **Pengguna:** setiap pengguna ditetapkan ke satu cabang (terkunci 🔒). Opsi *Semua cabang* khusus pemilik — pengguna ini bisa berpindah cabang lewat pemilih **Cabang** di header (pilihan terakhir diingat; default Bekasi).
+- **Dokumen PDF:** kop dan footer menampilkan cabang serta alamat/telepon cabang (bila diisi di master Cabang; bila kosong memakai alamat di Pengaturan).
+- **Migrasi otomatis:** saat aplikasi dijalankan pertama kali setelah update, tabel `branches` dibuat, kolom `branch_id` ditambahkan, dan seluruh data lama dimasukkan ke cabang **Bekasi**. Akun pemilik menjadi *Semua cabang*, akun lain menjadi Bekasi. Cabang Jakarta mendapat Kas Tunai baru. **Backup database dulu** sebelum update.
+
 ## Modul
 
 - **Dashboard**: ringkasan pesanan aktif, omzet, piutang, stok menipis, dan jadwal selesai.

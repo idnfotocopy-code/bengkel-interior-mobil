@@ -7,15 +7,18 @@ import { Card, Flash, PageHeader, Empty, TableWrap } from '@/components/ui';
 import { VehicleForm } from '@/components/VehicleForm';
 import { saveVehicle, deleteVehicle } from './actions';
 import { ConfirmButton } from '@/components/Confirm';
+import { activeBranchId } from '@/lib/branch';
+import { BranchBadge } from '@/components/BranchBadge';
 export const dynamic = 'force-dynamic';
 
 export default function Page({ searchParams }: { searchParams: any }) {
   const u = requireUser('kendaraan');
   const cari = String(searchParams?.q || '').trim();
   const tek = u.role === 'teknisi';
+  const cab = activeBranchId(u);
   const rows = all(`SELECT v.*, c.nama pemilik, c.kode FROM vehicles v JOIN customers c ON c.id=v.customer_id
-    WHERE (?='' OR v.nopol LIKE ? OR v.merek LIKE ? OR v.tipe LIKE ? OR c.nama LIKE ?) ${tek ? `AND v.id IN (SELECT vehicle_id FROM work_orders WHERE teknisi_id=${Number(u.id)})` : ''} ORDER BY v.id DESC`, cari, ...Array(4).fill(`%${cari}%`));
-  const customers = all('SELECT id, kode, nama FROM customers ORDER BY nama');
+    WHERE c.branch_id=${Number(cab)} AND (?='' OR v.nopol LIKE ? OR v.merek LIKE ? OR v.tipe LIKE ? OR c.nama LIKE ?) ${tek ? `AND v.id IN (SELECT vehicle_id FROM work_orders WHERE teknisi_id=${Number(u.id)})` : ''} ORDER BY v.id DESC`, cari, ...Array(4).fill(`%${cari}%`));
+  const customers = all('SELECT id, kode, nama FROM customers WHERE branch_id=? ORDER BY nama', cab);
   const kelola = can(u.role, 'kendaraan.kelola');
   return (<div>
     <PageHeader title="Kendaraan" desc={tek ? 'Kendaraan pada pekerjaan yang ditugaskan kepada Anda.' : 'Data kendaraan pelanggan: nomor polisi, merek, tipe, tahun, warna, kondisi awal interior, dan foto.'}>{kelola && <Link className="btn btn-primary" href="/kendaraan#tambah">+ Tambah kendaraan</Link>}</PageHeader>
@@ -33,7 +36,7 @@ export default function Page({ searchParams }: { searchParams: any }) {
         </tbody></table></TableWrap> : <Empty />}
       </Card>
       {kelola && <Card id="tambah" title="➕ Tambah kendaraan">
-        <form action={saveVehicle} className="space-y-3"><VehicleForm customers={customers} customerId={Number(searchParams?.customer_id) || undefined} /><button className="btn btn-primary w-full">Simpan kendaraan</button></form>
+        <form action={saveVehicle} className="space-y-3"><BranchBadge label="Pelanggan dari cabang" /><VehicleForm customers={customers} customerId={Number(searchParams?.customer_id) || undefined} /><button className="btn btn-primary w-full">Simpan kendaraan</button></form>
       </Card>}
     </div>
   </div>);

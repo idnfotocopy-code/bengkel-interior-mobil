@@ -9,15 +9,17 @@ import { Card, Flash, PageHeader, Empty, TableWrap, StatusBadge } from '@/compon
 import { ConfirmButton } from '@/components/Confirm';
 import { VehicleForm } from '@/components/VehicleForm';
 import { saveVehicle, deleteVehicle } from '../actions';
+import { requireBranch } from '@/lib/branch';
 export const dynamic = 'force-dynamic';
 
 export default function Page({ params, searchParams }: { params: { id: string }; searchParams: any }) {
   const u = requireUser('kendaraan');
-  const v = one('SELECT v.*, c.nama pemilik FROM vehicles v JOIN customers c ON c.id=v.customer_id WHERE v.id=?', Number(params.id));
+  const v = one('SELECT v.*, c.nama pemilik, c.branch_id c_branch FROM vehicles v JOIN customers c ON c.id=v.customer_id WHERE v.id=?', Number(params.id));
   if (!v) notFound();
+  requireBranch(u, v.c_branch, '/kendaraan');
   if (u.role === 'teknisi' && !one('SELECT 1 x FROM work_orders WHERE vehicle_id=? AND teknisi_id=?', v.id, u.id)) redirect('/kendaraan?err=' + encodeURIComponent('Kendaraan ini bukan bagian dari tugas Anda.'));
   const edit = can(u.role, 'kendaraan.kelola');
-  const customers = all('SELECT id, kode, nama FROM customers ORDER BY nama');
+  const customers = all('SELECT id, kode, nama FROM customers WHERE branch_id=? ORDER BY nama', v.c_branch);
   const wos = all('SELECT * FROM work_orders WHERE vehicle_id=? ORDER BY id DESC', v.id);
   const fotos = all('SELECT p.foto, p.catatan, p.at, w.nomor FROM work_progress p JOIN work_orders w ON w.id=p.wo_id WHERE w.vehicle_id=? AND p.foto IS NOT NULL ORDER BY p.id DESC', v.id);
   return (<div>

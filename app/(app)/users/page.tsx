@@ -7,17 +7,22 @@ import { tglJam } from '@/lib/util';
 import { Badge, Card, Flash, PageHeader, TableWrap, Field, Empty } from '@/components/ui';
 import { saveUser, deleteUser, toggleUser } from './actions';
 import { UserTabs } from './tabs';
+import { listBranches } from '@/lib/branch';
 export const dynamic = 'force-dynamic';
 
 export default function Page({ searchParams }: { searchParams: any }) {
   const me = requireUser('users');
   const fRole = (ROLES as readonly string[]).includes(searchParams?.role) ? searchParams.role : '';
+  const fCab0 = String(searchParams?.cabang || '');
   const fStatus = ['aktif', 'nonaktif'].includes(searchParams?.status) ? searchParams.status : '';
   const q = String(searchParams?.q || '').trim();
   const allUsers = all('SELECT * FROM users ORDER BY aktif DESC, role, nama');
   const users = allUsers.filter((x: any) => (!fRole || x.role === fRole) && (!fStatus || (fStatus === 'aktif' ? x.aktif : !x.aktif))
-    && (!q || `${x.username} ${x.nama} ${x.telepon || ''}`.toLowerCase().includes(q.toLowerCase())));
+    && (!fCab0 || (fCab0 === 'semua' ? x.branch_id == null : String(x.branch_id) === fCab0)) && (!q || `${x.username} ${x.nama} ${x.telepon || ''}`.toLowerCase().includes(q.toLowerCase())));
   const count = (r: string) => allUsers.filter((x: any) => x.role === r && x.aktif).length;
+  const branches = listBranches();
+  const bName = (id: number | null) => id == null ? null : (branches.find(b => b.id === id)?.nama || '?');
+  const fCab = fCab0;
   const roleOpts = ROLES.map(r => <option key={r} value={r}>{ROLE_LABEL[r]}</option>);
   return (<div>
     <PageHeader title="Pengguna & Role" desc="Kelola akun login dan batasi akses tiap akun lewat peran (role). Hanya pemilik yang dapat membuka menu ini.">
@@ -39,13 +44,15 @@ export default function Page({ searchParams }: { searchParams: any }) {
           <Field label="Cari"><input name="q" defaultValue={q} placeholder="username / nama / telepon" className="input" /></Field>
           <Field label="Role"><select name="role" defaultValue={fRole} className="input"><option value="">Semua role</option>{roleOpts}</select></Field>
           <Field label="Status"><select name="status" defaultValue={fStatus} className="input"><option value="">Semua</option><option value="aktif">Aktif</option><option value="nonaktif">Nonaktif</option></select></Field>
-          <button className="btn">Filter</button>{(fRole || fStatus || q) && <Link href="/users" className="btn">Reset</Link>}
+          <Field label="Cabang"><select name="cabang" defaultValue={fCab} className="input"><option value="">Semua</option><option value="semua">Akses semua cabang</option>{branches.map(b => <option key={b.id} value={b.id}>{b.nama}</option>)}</select></Field>
+          <button className="btn">Filter</button>{(fRole || fStatus || q || fCab) && <Link href="/users" className="btn">Reset</Link>}
         </form>
-        <TableWrap><table className="tbl"><thead><tr><th>Username</th><th>Nama</th><th>Role</th><th>Telepon</th><th>Status</th><th>Login terakhir</th><th className="text-right">Aksi</th></tr></thead><tbody>
+        <TableWrap><table className="tbl"><thead><tr><th>Username</th><th>Nama</th><th>Role</th><th>Cabang</th><th>Telepon</th><th>Status</th><th>Login terakhir</th><th className="text-right">Aksi</th></tr></thead><tbody>
           {users.map((x: any) => <tr key={x.id} className={x.aktif ? '' : 'opacity-60'}>
             <td className="font-mono text-xs">{x.username}{x.id === me.id && <span className="ml-1 text-brand-600 font-sans">(Anda)</span>}</td>
             <td>{x.nama}</td>
             <td><Badge color={ROLE_COLOR[x.role]}>{ROLE_LABEL[x.role] || x.role}</Badge></td>
+            <td className="text-sm">{x.branch_id == null ? <Badge color="violet">Semua cabang</Badge> : <>🏢 {bName(x.branch_id)}</>}</td>
             <td className="text-sm">{x.telepon || '-'}</td>
             <td>{x.aktif ? <Badge color="green">Aktif</Badge> : <Badge color="red">Nonaktif</Badge>}</td>
             <td className="text-xs whitespace-nowrap">{tglJam(x.last_login)}</td>
@@ -66,12 +73,16 @@ export default function Page({ searchParams }: { searchParams: any }) {
         <Field label="Username"><input name="username" className="input" required pattern="[a-z0-9_.]{3,30}" title="3–30 karakter: huruf kecil, angka, titik, garis bawah" /></Field>
         <Field label="Nama lengkap"><input name="nama" className="input" required /></Field>
         <Field label="Role (hak akses)"><select name="role" className="input" defaultValue="admin">{roleOpts}</select></Field>
+        <Field label="Cabang"><select name="branch_id" className="input" defaultValue={branches[0]?.id}>
+          <option value="">Semua cabang (khusus pemilik)</option>
+          {branches.map(b => <option key={b.id} value={b.id}>{b.nama}{b.aktif ? '' : ' (nonaktif)'}</option>)}
+        </select></Field>
         <Field label="Telepon"><input name="telepon" className="input" /></Field>
         <Field label="Kata sandi (min. 8)"><input name="password" type="password" minLength={8} autoComplete="new-password" className="input" required /></Field>
         <Field label="Ulangi kata sandi"><input name="password2" type="password" minLength={8} autoComplete="new-password" className="input" required /></Field>
         <div className="flex items-end"><button className="btn btn-primary">Tambah pengguna</button></div>
       </form>
-        <p className="text-xs text-slate-500 mt-3">Lihat apa saja yang boleh dilakukan tiap role di tab <Link href="/users/roles" className="underline">Role & hak akses</Link>.</p>
+        <p className="text-xs text-slate-500 mt-3">Lihat apa saja yang boleh dilakukan tiap role di tab <Link href="/users/roles" className="underline">Role & hak akses</Link>. Pengguna selain pemilik wajib punya satu cabang dan hanya melihat data cabang itu; pemilik dengan “Semua cabang” dapat berpindah cabang lewat pemilih di bagian atas.</p>
       </Card>
     </div>
   </div>);

@@ -6,13 +6,15 @@ import { tgl } from '@/lib/util';
 import { Card, Flash, PageHeader, Empty, TableWrap, Field } from '@/components/ui';
 import { saveCustomer, deleteCustomer } from './actions';
 import { ConfirmButton } from '@/components/Confirm';
+import { activeBranchId } from '@/lib/branch';
+import { BranchBadge } from '@/components/BranchBadge';
 export const dynamic = 'force-dynamic';
 
 export default function Page({ searchParams }: { searchParams: any }) {
   const u = requireUser('pelanggan');
   const cari = String(searchParams?.q || '').trim();
   const rows = all(`SELECT c.*, (SELECT COUNT(*) FROM vehicles v WHERE v.customer_id=c.id) kendaraan, (SELECT COUNT(*) FROM work_orders w WHERE w.customer_id=c.id) pesanan
-    FROM customers c WHERE (?='' OR c.nama LIKE ? OR c.telepon LIKE ? OR c.kode LIKE ?) ORDER BY c.id DESC`, cari, `%${cari}%`, `%${cari}%`, `%${cari}%`);
+    FROM customers c WHERE c.branch_id=? AND (?='' OR c.nama LIKE ? OR c.telepon LIKE ? OR c.kode LIKE ?) ORDER BY c.id DESC`, activeBranchId(u), cari, `%${cari}%`, `%${cari}%`, `%${cari}%`);
   const kelola = can(u.role, 'pelanggan.kelola');
   return (<div>
     <PageHeader title="Pelanggan" desc="Profil pelanggan, kontak, catatan preferensi, dan riwayat transaksi.">{kelola && <Link className="btn btn-primary" href="/pelanggan#tambah">+ Tambah pelanggan</Link>}</PageHeader>
@@ -26,6 +28,7 @@ export default function Page({ searchParams }: { searchParams: any }) {
       </Card>
       {kelola && <Card id="tambah" title="➕ Tambah pelanggan">
         <form action={saveCustomer} className="space-y-3">
+          <BranchBadge />
           <Field label="Nama *"><input name="nama" className="input" required /></Field>
           <Field label="Telepon / WhatsApp"><input name="telepon" className="input" placeholder="08xx" /></Field>
           <Field label="Alamat"><textarea name="alamat" className="input" rows={2} /></Field>

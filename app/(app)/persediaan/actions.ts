@@ -4,6 +4,7 @@ import { requirePerm, audit } from '@/lib/auth';
 import { insert, update, one, run, tx } from '@/lib/db';
 import { addStockMovement } from '@/lib/biz';
 import { s, n, nowStr, today, withMsg } from '@/lib/util';
+import { activeBranchId, guardRow } from '@/lib/branch';
 
 export async function saveMaterial(fd: FormData) {
   const u = requirePerm('stok.master');
@@ -12,13 +13,15 @@ export async function saveMaterial(fd: FormData) {
   const data = { kode, nama: s(fd, 'nama'), satuan: s(fd, 'satuan') || 'pcs', minimum: n(fd, 'minimum'), harga_beli: n(fd, 'harga_beli'), supplier_id: Number(fd.get('supplier_id')) || null, lokasi: s(fd, 'lokasi') };
   const back = id ? `/persediaan/${id}` : '/persediaan';
   if (!kode || !data.nama) redirect(withMsg(back, 'err', 'Kode dan nama bahan wajib diisi.'));
-  const dup = one('SELECT id FROM materials WHERE kode=? AND id!=?', kode, id);
-  if (dup) redirect(withMsg(back, 'err', `Kode ${kode} sudah dipakai.`));
+  if (id) guardRow(u, 'materials', id, '/persediaan');
+  const branch_id = id ? one('SELECT branch_id FROM materials WHERE id=?', id)?.branch_id : activeBranchId(u);
+  const dup = one('SELECT id FROM materials WHERE kode=? AND branch_id IS ? AND id!=?', kode, branch_id, id);
+  if (dup) redirect(withMsg(back, 'err', `Kode ${kode} sudah dipakai di cabang ini.`));
   let newId = id;
   tx(() => {
     if (id) update('materials', id, data);
     else {
-      newId = insert('materials', { ...data, stok: 0, aktif: 1 });
+      newId = insert('materials', { ...data, branch_id, stok: 0, aktif: 1 });
       const awal = n(fd, 'stok_awal');
       if (awal > 0) addStockMovement({ material_id: newId, tipe: 'masuk', qty: awal, harga: data.harga_beli, alasan: 'Stok awal', user_id: u.id });
     }
@@ -33,6 +36,7 @@ export async function deleteMaterial(fd: FormData) {
   const id = Number(fd.get('id'));
   const m = one('SELECT * FROM materials WHERE id=?', id);
   if (!m) redirect(withMsg('/persediaan', 'err', 'Bahan tidak ditemukan.'));
+  guardRow(u, 'materials', id, '/persediaan');
   const used = one('SELECT (SELECT COUNT(*) FROM stock_movements WHERE material_id=?) + (SELECT COUNT(*) FROM material_usage WHERE material_id=?) n', id, id).n;
   if (used) {
     run('UPDATE materials SET aktif=0 WHERE id=?', id);
@@ -55,6 +59,7 @@ export async function deleteSupplier(fd: FormData) {
 export async function toggleMaterial(fd: FormData) {
   const u = requirePerm('stok.master');
   const id = Number(fd.get('id'));
+  guardRow(u, 'materials', id, '/persediaan');
   run('UPDATE materials SET aktif=1-aktif WHERE id=?', id);
   audit(u, 'AKTIF_TOGGLE', 'materials', id);
   redirect(withMsg(s(fd, 'back') || `/persediaan/${id}`, 'ok', 'Status bahan diperbarui.'));
@@ -78,8 +83,14 @@ export async function stockMove(fd: FormData) {
   let qty = n(fd, 'qty');
   if (!['masuk', 'keluar', 'penyesuaian'].includes(tipe) || !material_id || !qty) redirect(withMsg(back, 'err', 'Lengkapi bahan, jenis, dan jumlah.'));
   if (tipe !== 'masuk' && !alasan) redirect(withMsg(back, 'err', 'Alasan wajib diisi untuk barang keluar/penyesuaian.'));
+  guardRow(u, 'materials', material_id, back);
   const tanggal = s(fd, 'tanggal') || today();
   const harga = n(fd, 'harga');
+  const cashId = Number(fd.get('cash_account_id')) || null;
+  if (cashId && s(fd, 'catat_biaya')) {
+    const ca = one('SELECT branch_id FROM cash_accounts WHERE id=?', cashId), mb = one('SELECT branch_id FROM materials WHERE id=?', material_id);
+    if (!ca || ca.branch_id !== mb?.branch_id) redirect(withMsg(back, 'err', 'Akun kas harus dari cabang yang sama dengan bahan.'));
+  }
   try {
     tx(() => {
       const m = one('SELECT * FROM materials WHERE id=?', material_id);
@@ -88,7 +99,7 @@ export async function stockMove(fd: FormData) {
       const { id } = addStockMovement({ material_id, tipe, qty, harga: tipe === 'masuk' && harga > 0 ? harga : undefined, alasan: alasan || (tipe === 'masuk' ? 'Pembelian / stok masuk' : ''), user_id: u.id, tanggal });
       if (tipe === 'masuk' && harga > 0 && s(fd, 'update_harga')) run('UPDATE materials SET harga_beli=? WHERE id=?', harga, material_id);
       if (tipe === 'masuk' && s(fd, 'catat_biaya') && harga > 0) {
-        insert('expenses', { tanggal, kategori: 'Pembelian bahan', deskripsi: `Beli ${m.kode} ${m.nama} ${qty} ${m.satuan}${alasan ? ' — ' + alasan : ''}`, jumlah: Math.abs(qty) * harga, cash_account_id: Number(fd.get('cash_account_id')) || null, user_id: u.id, created_at: nowStr() });
+        insert('expenses', { branch_id: m.branch_id, tanggal, kategori: 'Pembelian bahan', deskripsi: `Beli ${m.kode} ${m.nama} ${qty} ${m.satuan}${alasan ? ' — ' + alasan : ''}`, jumlah: Math.abs(qty) * harga, cash_account_id: cashId, user_id: u.id, created_at: nowStr() });
       }
       audit(u, 'STOK_' + tipe.toUpperCase(), 'materials', material_id, `${qty} (${alasan}) mv#${id}`);
     });
@@ -110,6 +121,7 @@ export async function updateMovement(fd: FormData) {
   const back = s(fd, 'back') || '/persediaan?tab=mutasi';
   const mv = manualMovement(id, back);
   const u = requirePerm(mv.tipe === 'masuk' ? 'stok.masuk' : 'stok.penyesuaian');
+  guardRow(u, 'stock_movements', id, back);
   const q = n(fd, 'qty');
   if (!q) redirect(withMsg(back, 'err', 'Jumlah wajib diisi.'));
   const signed = mv.tipe === 'masuk' ? Math.abs(q) : mv.tipe === 'keluar' ? -Math.abs(q) : q;
@@ -133,6 +145,7 @@ export async function deleteMovement(fd: FormData) {
   const back = s(fd, 'back') || '/persediaan?tab=mutasi';
   const mv = manualMovement(id, back);
   const u = requirePerm(mv.tipe === 'masuk' ? 'stok.masuk' : 'stok.penyesuaian');
+  guardRow(u, 'stock_movements', id, back);
   try {
     tx(() => {
       const m = one('SELECT * FROM materials WHERE id=?', mv.material_id);

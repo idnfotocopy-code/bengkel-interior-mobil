@@ -2,7 +2,7 @@ import { all, one, settings } from './db';
 import { woSummary, periodFinance, receivables, stockReport, cashBalances } from './biz';
 import { rp, num, tgl, addDays, today } from './util';
 import type { User } from './auth';
-import { createDoc, kop, heading, section, twoCol, table, totals, paragraph, note, box, signatures, finalize, placeDate, terbilang, kv, Doc, BRAND, M } from './pdf';
+import { createDoc, setDocBranch, kop, heading, section, twoCol, table, totals, paragraph, note, box, signatures, finalize, placeDate, terbilang, kv, Doc, BRAND, M } from './pdf';
 
 type Out = { buf: Buffer; filename: string };
 
@@ -31,6 +31,7 @@ export async function penawaran(u: User, id: number): Promise<Out> {
   const berlaku = addDays(tanggal, Number(st.masa_berlaku_hari) || 14);
   const nomor = w.nomor.replace('BIM', 'SPH');
   const doc = createDoc(`Surat Penawaran ${nomor}`);
+  setDocBranch(doc, w.branch_id);
   kop(doc, 'Surat Penawaran', [['No.', nomor], ['Tanggal', tgl(tanggal)], ['Berlaku s/d', tgl(berlaku)], ['Ref. WO', w.nomor]]);
   paragraph(doc, `Kepada Yth. ${w.pelanggan}${w.alamat ? ', ' + w.alamat : ''}`);
   paragraph(doc, `Dengan hormat, bersama ini kami sampaikan penawaran harga pekerjaan interior untuk kendaraan ${w.merek || ''} ${w.tipe || ''} (${w.nopol}) sebagai berikut:`);
@@ -41,7 +42,7 @@ export async function penawaran(u: User, id: number): Promise<Out> {
   totals(doc, [['Subtotal jasa', rp(sm.jasa)], ['Subtotal barang/bahan', rp(sm.barang)], ...(sm.diskon ? [['Diskon', '- ' + rp(sm.diskon)] as [string, string]] : []), ['TOTAL PENAWARAN', rp(sm.total), true], ['Estimasi waktu pengerjaan', `${tgl(w.tgl_masuk)} – ${tgl(w.target_selesai)}`]]);
   box(doc, 'Syarat & ketentuan', `${st.syarat_penawaran || ''}\nPenawaran ini berlaku sampai ${tgl(berlaku)}.`);
   paragraph(doc, 'Demikian penawaran ini kami sampaikan. Atas perhatian dan kepercayaan Bapak/Ibu, kami ucapkan terima kasih.');
-  signatures(doc, [{ label: 'Hormat kami,', title: st.nama_usaha, name: w.pj || u.nama }, { label: 'Disetujui oleh,', title: 'Pelanggan', name: w.pelanggan }], placeDate(tanggal));
+  signatures(doc, [{ label: 'Hormat kami,', title: st.nama_usaha, name: w.pj || u.nama }, { label: 'Disetujui oleh,', title: 'Pelanggan', name: w.pelanggan }], placeDate(doc, tanggal));
   return { buf: await finalize(doc, { by: u.nama, docNo: nomor }), filename: `Penawaran-${nomor}.pdf` };
 }
 
@@ -49,6 +50,7 @@ export async function penawaran(u: User, id: number): Promise<Out> {
 export async function workOrder(u: User, id: number): Promise<Out> {
   const w = loadWO(id); const st = settings();
   const doc = createDoc(`Work Order ${w.nomor}`);
+  setDocBranch(doc, w.branch_id);
   kop(doc, 'Work Order', [['No. WO', w.nomor], ['Tgl masuk', tgl(w.tgl_masuk)], ['Target', tgl(w.target_selesai)], ['Status', w.status]]);
   twoCol(doc, custBlock(w), vehBlock(w));
   section(doc, 'Pekerjaan & jadwal');
@@ -59,7 +61,7 @@ export async function workOrder(u: User, id: number): Promise<Out> {
   if (usage.length) { section(doc, 'Bahan yang sudah dipakai'); table(doc, [{ h: 'Tanggal', w: 20 }, { h: 'Kode', w: 12 }, { h: 'Bahan', w: 48 }, { h: 'Qty', w: 20, align: 'right' }], usage.map((m: any) => [tgl(m.tanggal), m.kode, m.nama, `${num(m.qty)} ${m.satuan}`])); }
   section(doc, 'Checklist pemeriksaan kualitas');
   table(doc, [{ h: 'Item pemeriksaan', w: 60 }, { h: 'OK', w: 10, align: 'center' }, { h: 'Catatan', w: 30 }], ['Jahitan rapi & kuat', 'Warna/material sesuai pesanan', 'Pemasangan presisi, tidak bergelombang', 'Fungsi jok/sabuk/kelistrikan normal', 'Kabin bersih dari sisa bahan'].map(x => [x, '[   ]', '']));
-  signatures(doc, [{ label: 'Dibuat oleh,', title: 'Admin', name: w.pj || u.nama }, { label: 'Dikerjakan oleh,', title: 'Teknisi', name: w.teknisi || '' }, { label: 'Disetujui,', title: 'Pelanggan', name: w.pelanggan }], placeDate(w.tgl_masuk));
+  signatures(doc, [{ label: 'Dibuat oleh,', title: 'Admin', name: w.pj || u.nama }, { label: 'Dikerjakan oleh,', title: 'Teknisi', name: w.teknisi || '' }, { label: 'Disetujui,', title: 'Pelanggan', name: w.pelanggan }], placeDate(doc, w.tgl_masuk));
   return { buf: await finalize(doc, { by: u.nama, docNo: w.nomor }), filename: `WO-${w.nomor}.pdf` };
 }
 
@@ -72,6 +74,7 @@ export async function invoice(u: User, invoiceId: number): Promise<Out> {
   const paid = pays.reduce((a: number, p: any) => a + p.jumlah, 0);
   const sisa = Math.max(0, inv.total - paid);
   const doc = createDoc(`Invoice ${inv.nomor}`);
+  setDocBranch(doc, w.branch_id);
   kop(doc, 'Invoice', [['No. invoice', inv.nomor], ['Tanggal', tgl(inv.tanggal)], ['Jatuh tempo', tgl(inv.jatuh_tempo)], ['Ref. WO', w.nomor], ['Status', inv.status]]);
   twoCol(doc, { title: 'Ditagihkan kepada', rows: custBlock(w).rows }, vehBlock(w));
   section(doc, `Rincian — ${w.jenis_pekerjaan || ''}`);
@@ -87,7 +90,7 @@ export async function invoice(u: User, invoiceId: number): Promise<Out> {
   totals(doc, [['Total tagihan', rp(inv.total)], ['Sudah dibayar', '- ' + rp(paid)], ['SISA TAGIHAN', rp(sisa), true], ['Jatuh tempo', tgl(inv.jatuh_tempo)]]);
   if (sisa <= 0.5) { const yy = doc.y; doc.save(); doc.rotate(-15, { origin: [140, yy - 45] }); doc.roundedRect(70, yy - 70, 150, 46, 6).lineWidth(3).strokeColor('#16a34a').stroke(); doc.font('Helvetica-Bold').fontSize(30).fillColor('#16a34a').text('LUNAS', 70, yy - 60, { width: 150, align: 'center', lineBreak: false }); doc.restore(); doc.y = yy; doc.x = M; doc.fillColor('#000').strokeColor('#000').lineWidth(1); }
   box(doc, 'Instruksi pembayaran', `${st.instruksi_bayar || ''}\nRekening: ${st.rekening || '-'}\nBerita transfer: ${inv.nomor}`);
-  signatures(doc, [{ label: ' ', title: ' ', name: ' ' }, { label: 'Hormat kami,', title: st.nama_usaha, name: u.nama }], placeDate(inv.tanggal));
+  signatures(doc, [{ label: ' ', title: ' ', name: ' ' }, { label: 'Hormat kami,', title: st.nama_usaha, name: u.nama }], placeDate(doc, inv.tanggal));
   return { buf: await finalize(doc, { by: u.nama, docNo: inv.nomor }), filename: `Invoice-${inv.nomor}.pdf` };
 }
 
@@ -98,6 +101,7 @@ export async function kuitansi(u: User, paymentId: number): Promise<Out> {
   const w = loadWO(p.wo_id); const st = settings(); const sm = woSummary(p.wo_id);
   const before = one('SELECT COALESCE(SUM(jumlah),0) v FROM payments WHERE wo_id=? AND (tanggal<? OR (tanggal=? AND id<?))', p.wo_id, p.tanggal, p.tanggal, p.id).v;
   const doc = createDoc(`Kuitansi ${p.nomor}`);
+  setDocBranch(doc, w.branch_id);
   kop(doc, 'Kuitansi', [['No.', p.nomor], ['Tanggal', tgl(p.tanggal)], ['Ref. invoice', p.inv_nomor || '-'], ['Ref. WO', w.nomor]]);
   doc.moveDown(0.5);
   kv(doc, [['Telah terima dari', w.pelanggan], ['Uang sejumlah', rp(p.jumlah)], ['Terbilang', terbilang(p.jumlah)], ['Untuk pembayaran', `${p.jenis} — ${w.jenis_pekerjaan || 'pekerjaan interior'} ${w.merek || ''} ${w.tipe || ''} (${w.nopol}), ${w.nomor}`], ['Metode pembayaran', `${p.metode || '-'}${p.akun ? ' • ' + p.akun : ''}`], ['Referensi invoice', p.inv_nomor || 'Belum diterbitkan'], ['Catatan', p.catatan]], 130);
@@ -107,7 +111,7 @@ export async function kuitansi(u: User, paymentId: number): Promise<Out> {
   doc.font('Helvetica-Bold').fontSize(16).fillColor(BRAND).text(rp(p.jumlah), M, y + 10, { width: 220, align: 'center' });
   doc.fillColor('#000').strokeColor('#000'); doc.y = y + 46;
   totals(doc, [['Total pekerjaan', rp(sm.total)], ['Dibayar sebelumnya', rp(before)], ['Pembayaran ini', rp(p.jumlah)], ['Sisa tagihan setelah ini', rp(Math.max(0, sm.total - before - p.jumlah)), true]]);
-  signatures(doc, [{ label: 'Penyetor,', title: 'Pelanggan', name: w.pelanggan }, { label: 'Penerima,', title: st.nama_usaha, name: p.penerima || u.nama }], placeDate(p.tanggal));
+  signatures(doc, [{ label: 'Penyetor,', title: 'Pelanggan', name: w.pelanggan }, { label: 'Penerima,', title: st.nama_usaha, name: p.penerima || u.nama }], placeDate(doc, p.tanggal));
   note(doc, 'Kuitansi ini sah sebagai bukti penerimaan uang. Pembayaran transfer dianggap sah setelah dana diterima di rekening usaha.');
   return { buf: await finalize(doc, { by: u.nama, docNo: p.nomor }), filename: `Kuitansi-${p.nomor}.pdf` };
 }
@@ -118,6 +122,7 @@ export async function serahTerima(u: User, id: number): Promise<Out> {
   const nomor = w.nomor.replace('BIM', 'BAST');
   const tanggal = w.tgl_selesai || today();
   const doc = createDoc(`Serah Terima ${nomor}`);
+  setDocBranch(doc, w.branch_id);
   kop(doc, 'Surat Serah Terima', [['No.', nomor], ['Tanggal', tgl(tanggal)], ['Ref. WO', w.nomor]]);
   heading(doc, 'BERITA ACARA SERAH TERIMA KENDARAAN');
   paragraph(doc, `Pada hari ini, ${tgl(tanggal)}, pihak ${st.nama_usaha} (Pihak Pertama) menyerahkan kembali kendaraan kepada ${w.pelanggan} (Pihak Kedua) setelah selesainya pekerjaan interior dengan rincian sebagai berikut:`);
@@ -128,14 +133,15 @@ export async function serahTerima(u: User, id: number): Promise<Out> {
   kv(doc, [['Kondisi saat masuk', w.kondisi], ['Kondisi saat diserahkan', w.kondisi_serah || 'Baik, pekerjaan selesai sesuai pesanan.'], ['Tanggal masuk', tgl(w.tgl_masuk)], ['Tanggal selesai', tgl(w.tgl_selesai)], ['Teknisi', w.teknisi]]);
   table(doc, [{ h: 'Pemeriksaan bersama', w: 70 }, { h: 'Sesuai', w: 15, align: 'center' }, { h: 'Tidak', w: 15, align: 'center' }], ['Hasil pekerjaan sesuai pesanan', 'Kebersihan kabin', 'Barang pribadi pelanggan lengkap', 'Kunci & STNK diterima kembali'].map(x => [x, '[   ]', '[   ]']));
   paragraph(doc, 'Dengan ditandatanganinya berita acara ini, Pihak Kedua menyatakan telah menerima kendaraan beserta hasil pekerjaan dalam keadaan baik. Keluhan setelah serah terima ditangani sesuai ketentuan garansi.');
-  signatures(doc, [{ label: 'Yang menyerahkan,', title: st.nama_usaha, name: w.pj || u.nama }, { label: 'Yang menerima,', title: 'Pelanggan', name: w.pelanggan }], placeDate(tanggal));
+  signatures(doc, [{ label: 'Yang menyerahkan,', title: st.nama_usaha, name: w.pj || u.nama }, { label: 'Yang menerima,', title: 'Pelanggan', name: w.pelanggan }], placeDate(doc, tanggal));
   return { buf: await finalize(doc, { by: u.nama, docNo: nomor }), filename: `SerahTerima-${nomor}.pdf` };
 }
 
 // ---------------- Laporan stok ----------------
-export async function laporanStok(u: User, from: string, to: string, showCost = true): Promise<Out> {
-  const rows = stockReport(from, to);
+export async function laporanStok(u: User, b: number, from: string, to: string, showCost = true): Promise<Out> {
+  const rows = stockReport(from, to, b);
   const doc = createDoc('Laporan Stok', true);
+  setDocBranch(doc, b);
   kop(doc, 'Laporan Stok', [['Periode', `${tgl(from)}`], ['s/d', tgl(to)]]);
   heading(doc, 'LAPORAN STOK & NILAI PERSEDIAAN BAHAN', `Periode ${tgl(from)} – ${tgl(to)}`);
   const cols: any[] = [{ h: 'Kode', w: 7 }, { h: 'Nama bahan', w: 24 }, { h: 'Satuan', w: 7 }, { h: 'Saldo awal', w: 9, align: 'right' }, { h: 'Masuk', w: 9, align: 'right' }, { h: 'Keluar', w: 9, align: 'right' }, { h: 'Saldo akhir', w: 9, align: 'right' }, { h: 'Min.', w: 6, align: 'right' }];
@@ -144,21 +150,22 @@ export async function laporanStok(u: User, from: string, to: string, showCost = 
   table(doc, cols, rows.map((r: any) => [r.kode, r.nama + (r.akhir <= r.minimum ? ' (menipis)' : ''), r.satuan, num(r.awal), num(r.masuk), num(r.keluar), num(r.akhir), num(r.minimum), ...(showCost ? [rp(r.harga_beli), rp(r.nilai)] : [])]),
     { total: showCost ? [['', 'TOTAL NILAI PERSEDIAAN', '', '', '', '', '', '', '', rp(total)]] : undefined });
   note(doc, 'Saldo awal = akumulasi mutasi sebelum periode. Keluar mencakup pemakaian untuk pesanan, barang keluar, dan penyesuaian negatif. Nilai persediaan dihitung dari saldo akhir × harga beli terkini.');
-  const mov = all(`SELECT s.*, m.kode, m.nama, m.satuan, w.nomor wo_nomor FROM stock_movements s JOIN materials m ON m.id=s.material_id LEFT JOIN work_orders w ON w.id=s.wo_id WHERE s.tanggal BETWEEN ? AND ? ORDER BY s.tanggal, s.id`, from, to);
+  const mov = all(`SELECT s.*, m.kode, m.nama, m.satuan, w.nomor wo_nomor FROM stock_movements s JOIN materials m ON m.id=s.material_id LEFT JOIN work_orders w ON w.id=s.wo_id WHERE s.branch_id=? AND s.tanggal BETWEEN ? AND ? ORDER BY s.tanggal, s.id`, b, from, to);
   section(doc, 'Rincian mutasi pada periode');
   table(doc, [{ h: 'Tanggal', w: 12 }, { h: 'Bahan', w: 28 }, { h: 'Jenis', w: 10 }, { h: 'Qty', w: 10, align: 'right' }, { h: 'Pesanan', w: 14 }, { h: 'Alasan / keterangan', w: 26 }],
     mov.map((s: any) => [tgl(s.tanggal), `${s.kode} ${s.nama}`, s.tipe, `${s.qty > 0 ? '+' : ''}${num(s.qty)} ${s.satuan}`, s.wo_nomor || '-', s.alasan || '']), { fontSize: 8 });
-  signatures(doc, [{ label: 'Dibuat oleh,', title: 'Bagian Gudang', name: u.nama }, { label: 'Mengetahui,', title: 'Pemilik', name: '' }], placeDate());
+  signatures(doc, [{ label: 'Dibuat oleh,', title: 'Bagian Gudang', name: u.nama }, { label: 'Mengetahui,', title: 'Pemilik', name: '' }], placeDate(doc));
   return { buf: await finalize(doc, { by: u.nama }), filename: `Laporan-Stok-${from}_${to}.pdf` };
 }
 
 // ---------------- Laporan transaksi ----------------
-export async function laporanTransaksi(u: User, from: string, to: string): Promise<Out> {
-  const pays = all(`SELECT p.tanggal, p.nomor ref, p.jenis kategori, ('Pembayaran ' || COALESCE(w.nomor,'') || ' — ' || COALESCE(c.nama,'')) ket, p.jumlah, a.nama akun FROM payments p LEFT JOIN work_orders w ON w.id=p.wo_id LEFT JOIN customers c ON c.id=w.customer_id LEFT JOIN cash_accounts a ON a.id=p.cash_account_id WHERE p.tanggal BETWEEN ? AND ?`, from, to);
-  const exps = all(`SELECT e.tanggal, ('EXP-' || e.id) ref, e.kategori, e.deskripsi ket, e.jumlah, a.nama akun FROM expenses e LEFT JOIN cash_accounts a ON a.id=e.cash_account_id WHERE e.tanggal BETWEEN ? AND ?`, from, to);
+export async function laporanTransaksi(u: User, b: number, from: string, to: string): Promise<Out> {
+  const pays = all(`SELECT p.tanggal, p.nomor ref, p.jenis kategori, ('Pembayaran ' || COALESCE(w.nomor,'') || ' — ' || COALESCE(c.nama,'')) ket, p.jumlah, a.nama akun FROM payments p LEFT JOIN work_orders w ON w.id=p.wo_id LEFT JOIN customers c ON c.id=w.customer_id LEFT JOIN cash_accounts a ON a.id=p.cash_account_id WHERE p.branch_id=? AND p.tanggal BETWEEN ? AND ?`, b, from, to);
+  const exps = all(`SELECT e.tanggal, ('EXP-' || e.id) ref, e.kategori, e.deskripsi ket, e.jumlah, a.nama akun FROM expenses e LEFT JOIN cash_accounts a ON a.id=e.cash_account_id WHERE e.branch_id=? AND e.tanggal BETWEEN ? AND ?`, b, from, to);
   const rows = [...pays.map((r: any) => ({ ...r, masuk: r.jumlah, keluar: 0 })), ...exps.map((r: any) => ({ ...r, masuk: 0, keluar: r.jumlah }))].sort((a, b) => a.tanggal.localeCompare(b.tanggal));
   const tin = pays.reduce((a: number, r: any) => a + r.jumlah, 0), tout = exps.reduce((a: number, r: any) => a + r.jumlah, 0);
   const doc = createDoc('Laporan Transaksi', true);
+  setDocBranch(doc, b);
   kop(doc, 'Laporan Transaksi', [['Periode', tgl(from)], ['s/d', tgl(to)]]);
   heading(doc, 'LAPORAN TRANSAKSI PEMASUKAN & PENGELUARAN', `Periode ${tgl(from)} – ${tgl(to)}`);
   section(doc, 'Ringkasan per kategori');
@@ -171,15 +178,16 @@ export async function laporanTransaksi(u: User, from: string, to: string): Promi
   table(doc, [{ h: 'Tanggal', w: 10 }, { h: 'Referensi', w: 12 }, { h: 'Kategori', w: 13 }, { h: 'Keterangan', w: 33 }, { h: 'Akun', w: 11 }, { h: 'Masuk', w: 10.5, align: 'right' }, { h: 'Keluar', w: 10.5, align: 'right' }],
     rows.map((r: any) => [tgl(r.tanggal), r.ref, r.kategori, r.ket || '', r.akun || '-', r.masuk ? rp(r.masuk) : '', r.keluar ? rp(r.keluar) : '']), { fontSize: 8, total: [['', '', '', 'TOTAL', '', rp(tin), rp(tout)]] });
   section(doc, 'Saldo akun kas & bank (per tanggal cetak)');
-  table(doc, [{ h: 'Akun', w: 40 }, { h: 'Saldo awal', w: 15, align: 'right' }, { h: 'Masuk', w: 15, align: 'right' }, { h: 'Keluar', w: 15, align: 'right' }, { h: 'Saldo', w: 15, align: 'right' }], cashBalances().map((a: any) => [a.nama, rp(a.saldo_awal), rp(a.masuk), rp(a.keluar), rp(a.saldo)]));
-  signatures(doc, [{ label: 'Dibuat oleh,', title: 'Bagian Keuangan', name: u.nama }, { label: 'Mengetahui,', title: 'Pemilik', name: '' }], placeDate());
+  table(doc, [{ h: 'Akun', w: 40 }, { h: 'Saldo awal', w: 15, align: 'right' }, { h: 'Masuk', w: 15, align: 'right' }, { h: 'Keluar', w: 15, align: 'right' }, { h: 'Saldo', w: 15, align: 'right' }], cashBalances(b).map((a: any) => [a.nama, rp(a.saldo_awal), rp(a.masuk), rp(a.keluar), rp(a.saldo)]));
+  signatures(doc, [{ label: 'Dibuat oleh,', title: 'Bagian Keuangan', name: u.nama }, { label: 'Mengetahui,', title: 'Pemilik', name: '' }], placeDate(doc));
   return { buf: await finalize(doc, { by: u.nama }), filename: `Laporan-Transaksi-${from}_${to}.pdf` };
 }
 
 // ---------------- Laporan laba rugi ----------------
-export async function laporanLabaRugi(u: User, from: string, to: string): Promise<Out> {
-  const f = periodFinance(from, to);
+export async function laporanLabaRugi(u: User, b: number, from: string, to: string): Promise<Out> {
+  const f = periodFinance(from, to, b);
   const doc = createDoc('Laporan Laba Rugi');
+  setDocBranch(doc, b);
   kop(doc, 'Laba Rugi', [['Periode', tgl(from)], ['s/d', tgl(to)]]);
   heading(doc, 'LAPORAN LABA RUGI', `Periode ${tgl(from)} – ${tgl(to)}`);
   const L = (k: string, v: string, bold = false) => [bold ? k.toUpperCase() : '   ' + k, v];
@@ -190,30 +198,31 @@ export async function laporanLabaRugi(u: User, from: string, to: string): Promis
     L('Biaya operasional', '', true), ...f.opsRows.map((r: any) => L(r.kategori, rp(r.v))), ...(f.opsRows.length ? [] : [L('(tidak ada)', rp(0))]), L('Total biaya operasional', rp(f.ops)),
   ], { fontSize: 9.5, total: [[f.laba >= 0 ? 'LABA BERSIH' : 'RUGI BERSIH', rp(f.laba)]] });
   section(doc, 'Informasi tambahan (bukan bagian laba rugi)');
-  const pr = receivables();
+  const pr = receivables(b);
   kv(doc, [['Uang masuk dari pelanggan', rp(f.pemasukan)], ['Pembelian bahan (menambah persediaan)', rp(f.pembelianBahan)], ['Total pengeluaran kas', rp(f.pengeluaran)], ['Piutang belum tertagih (saat ini)', rp(pr.total)]], 220);
   note(doc, 'Pendapatan diakui saat invoice diterbitkan. Uang muka adalah penerimaan kas, bukan otomatis keuntungan. Pembelian bahan dicatat sebagai persediaan dan baru menjadi biaya saat bahan dipakai pada pesanan.');
-  const per = all(`SELECT w.id, w.nomor, c.nama, i.total FROM invoices i JOIN work_orders w ON w.id=i.wo_id JOIN customers c ON c.id=w.customer_id WHERE i.status!='Batal' AND i.tanggal BETWEEN ? AND ? ORDER BY i.tanggal`, from, to);
+  const per = all(`SELECT w.id, w.nomor, c.nama, i.total FROM invoices i JOIN work_orders w ON w.id=i.wo_id JOIN customers c ON c.id=w.customer_id WHERE i.branch_id=? AND i.status!='Batal' AND i.tanggal BETWEEN ? AND ? ORDER BY i.tanggal`, b, from, to);
   if (per.length) {
     section(doc, 'Estimasi margin per pesanan (invoice periode ini)');
     table(doc, [{ h: 'Pesanan', w: 16 }, { h: 'Pelanggan', w: 24 }, { h: 'Nilai', w: 15, align: 'right' }, { h: 'Bahan', w: 15, align: 'right' }, { h: 'TK + ops (est.)', w: 15, align: 'right' }, { h: 'Margin', w: 15, align: 'right' }],
       per.map((r: any) => { const s = woSummary(r.id); return [r.nomor, r.nama, rp(r.total), rp(s.bahan), rp(s.tk + s.ops), rp(r.total - s.bahan - s.tk - s.ops)]; }), { fontSize: 8 });
   }
-  signatures(doc, [{ label: 'Dibuat oleh,', title: 'Bagian Keuangan', name: u.nama }, { label: 'Disetujui,', title: 'Pemilik', name: '' }], placeDate());
+  signatures(doc, [{ label: 'Dibuat oleh,', title: 'Bagian Keuangan', name: u.nama }, { label: 'Disetujui,', title: 'Pemilik', name: '' }], placeDate(doc));
   return { buf: await finalize(doc, { by: u.nama }), filename: `Laporan-LabaRugi-${from}_${to}.pdf` };
 }
 
 // ---------------- Laporan piutang ----------------
-export async function laporanPiutang(u: User): Promise<Out> {
-  const pr = receivables();
+export async function laporanPiutang(u: User, b: number): Promise<Out> {
+  const pr = receivables(b);
   const doc = createDoc('Laporan Piutang');
+  setDocBranch(doc, b);
   kop(doc, 'Laporan Piutang', [['Per tanggal', tgl(today())]]);
   heading(doc, 'DAFTAR PIUTANG & UMUR PIUTANG', `Per ${tgl(today())}`);
   table(doc, [{ h: 'Invoice', w: 15 }, { h: 'Pelanggan', w: 22 }, { h: 'Jatuh tempo', w: 14 }, { h: 'Total', w: 13, align: 'right' }, { h: 'Dibayar', w: 13, align: 'right' }, { h: 'Sisa', w: 13, align: 'right' }, { h: 'Umur', w: 10 }],
     pr.rows.map((r: any) => [`${r.nomor}\n${r.wo_nomor}`, `${r.pelanggan}\n${r.telepon || ''}`, tgl(r.jatuh_tempo), rp(r.total), rp(r.dibayar), rp(r.sisa), r.umur > 0 ? `lewat ${r.umur} hr` : 'belum jatuh tempo']), { total: [['', 'TOTAL PIUTANG', '', '', '', rp(pr.total), '']] });
-  const b = (lo: number, hi: number) => pr.rows.filter((r: any) => r.umur >= lo && r.umur <= hi).reduce((a: number, r: any) => a + r.sisa, 0);
+  const ag = (lo: number, hi: number) => pr.rows.filter((r: any) => r.umur >= lo && r.umur <= hi).reduce((a: number, r: any) => a + r.sisa, 0);
   section(doc, 'Ringkasan umur piutang');
-  table(doc, [{ h: 'Belum jatuh tempo', w: 25, align: 'right' }, { h: '1–30 hari', w: 25, align: 'right' }, { h: '31–60 hari', w: 25, align: 'right' }, { h: '> 60 hari', w: 25, align: 'right' }], [[rp(b(-99999, 0)), rp(b(1, 30)), rp(b(31, 60)), rp(b(61, 999999))]]);
-  signatures(doc, [{ label: 'Dibuat oleh,', title: 'Bagian Keuangan', name: u.nama }, { label: 'Mengetahui,', title: 'Pemilik', name: '' }], placeDate());
+  table(doc, [{ h: 'Belum jatuh tempo', w: 25, align: 'right' }, { h: '1–30 hari', w: 25, align: 'right' }, { h: '31–60 hari', w: 25, align: 'right' }, { h: '> 60 hari', w: 25, align: 'right' }], [[rp(ag(-99999, 0)), rp(ag(1, 30)), rp(ag(31, 60)), rp(ag(61, 999999))]]);
+  signatures(doc, [{ label: 'Dibuat oleh,', title: 'Bagian Keuangan', name: u.nama }, { label: 'Mengetahui,', title: 'Pemilik', name: '' }], placeDate(doc));
   return { buf: await finalize(doc, { by: u.nama }), filename: `Laporan-Piutang-${today()}.pdf` };
 }

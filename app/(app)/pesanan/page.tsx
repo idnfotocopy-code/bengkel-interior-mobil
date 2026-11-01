@@ -6,6 +6,7 @@ import { woSummary } from '@/lib/biz';
 import { WO_STATUSES, WO_CANCELLED } from '@/lib/constants';
 import { rp, tgl, today } from '@/lib/util';
 import { ConfirmButton } from '@/components/Confirm';
+import { activeBranchId } from '@/lib/branch';
 import { cancelWO, deleteWO } from './actions';
 import { Card, Flash, PageHeader, Empty, TableWrap, StatusBadge } from '@/components/ui';
 export const dynamic = 'force-dynamic';
@@ -15,7 +16,7 @@ export default function Page({ searchParams }: { searchParams: any }) {
   const status = String(searchParams?.status || '');
   const cari = String(searchParams?.q || '').trim();
   const semua = can(u.role, 'pesanan.semua');
-  const where: string[] = []; const p: any[] = [];
+  const where: string[] = ['w.branch_id=?']; const p: any[] = [activeBranchId(u)];
   if (status === 'aktif') where.push("w.status NOT IN ('Selesai','Dibatalkan')");
   else if (status) { where.push('w.status=?'); p.push(status); }
   if (cari) { where.push('(w.nomor LIKE ? OR c.nama LIKE ? OR v.nopol LIKE ? OR w.jenis_pekerjaan LIKE ?)'); p.push(...Array(4).fill(`%${cari}%`)); }

@@ -6,21 +6,24 @@ import { rp, num, tgl, today } from '@/lib/util';
 import { Card, Flash, PageHeader, Empty, TableWrap, Tabs, Field, Badge, Stat } from '@/components/ui';
 import { saveMaterial, saveSupplier, stockMove, deleteMaterial, deleteSupplier, toggleMaterial, updateMovement, deleteMovement } from './actions';
 import { ConfirmButton } from '@/components/Confirm';
+import { activeBranchId } from '@/lib/branch';
+import { BranchBadge } from '@/components/BranchBadge';
 export const dynamic = 'force-dynamic';
 
 export default function Page({ searchParams }: { searchParams: any }) {
   const u = requireUser('persediaan');
+  const cab = activeBranchId(u);
   const tab = ['bahan', 'mutasi', 'supplier'].includes(searchParams?.tab) ? searchParams.tab : 'bahan';
   const cost = can(u.role, 'stok.lihat_biaya');
   const master = can(u.role, 'stok.master');
   const hl = Number(searchParams?.hl) || 0;
   const menipis = searchParams?.filter === 'menipis';
   const cari = String(searchParams?.q || '').trim();
-  const mats = all(`SELECT m.*, s.nama supplier FROM materials m LEFT JOIN suppliers s ON s.id=m.supplier_id WHERE 1=1 ${menipis ? 'AND m.stok<=m.minimum AND m.aktif=1' : ''} ${cari ? 'AND (m.kode LIKE ? OR m.nama LIKE ?)' : ''} ORDER BY m.aktif DESC, m.kode`, ...(cari ? [`%${cari}%`, `%${cari}%`] : []));
-  const low = all('SELECT * FROM materials WHERE aktif=1 AND stok<=minimum ORDER BY kode');
+  const mats = all(`SELECT m.*, s.nama supplier FROM materials m LEFT JOIN suppliers s ON s.id=m.supplier_id WHERE m.branch_id=${Number(cab)} ${menipis ? 'AND m.stok<=m.minimum AND m.aktif=1' : ''} ${cari ? 'AND (m.kode LIKE ? OR m.nama LIKE ?)' : ''} ORDER BY m.aktif DESC, m.kode`, ...(cari ? [`%${cari}%`, `%${cari}%`] : []));
+  const low = all('SELECT * FROM materials WHERE branch_id=? AND aktif=1 AND stok<=minimum ORDER BY kode', cab);
   const suppliers = all('SELECT * FROM suppliers ORDER BY nama');
-  const activeMats = all('SELECT id, kode, nama, satuan, stok, harga_beli FROM materials WHERE aktif=1 ORDER BY kode');
-  const accounts = all('SELECT * FROM cash_accounts WHERE aktif=1');
+  const activeMats = all('SELECT id, kode, nama, satuan, stok, harga_beli FROM materials WHERE branch_id=? AND aktif=1 ORDER BY kode', cab);
+  const accounts = all('SELECT * FROM cash_accounts WHERE branch_id=? AND aktif=1', cab);
   const nilai = activeMats.reduce((a: number, m: any) => a + m.stok * m.harga_beli, 0);
   return (<div>
     <PageHeader title="Persediaan bahan" desc="Stok bahan berkurang otomatis saat dipakai pada pesanan. Penyesuaian wajib disertai alasan.">{master && <><Link className="btn btn-primary" href="/persediaan#tambah-bahan">+ Tambah bahan</Link><Link className="btn" href="/persediaan?tab=supplier#tambah-pemasok">+ Tambah pemasok</Link></>}</PageHeader>
@@ -43,7 +46,7 @@ export default function Page({ searchParams }: { searchParams: any }) {
             {master && <td className="whitespace-nowrap text-right"><Link className="btn btn-sm" href={`/persediaan/${m.id}#edit`}>✏️ Edit</Link> {m.aktif ? <form action={deleteMaterial} className="inline"><input type="hidden" name="id" value={m.id} /><ConfirmButton className="btn btn-sm text-red-600" msg={`Hapus bahan ${m.kode} · ${m.nama}? Bila bahan sudah punya riwayat stok, bahan hanya dinonaktifkan.`}>🗑 Hapus</ConfirmButton></form> : <form action={toggleMaterial} className="inline"><input type="hidden" name="id" value={m.id} /><input type="hidden" name="back" value="/persediaan" /><ConfirmButton className="btn btn-sm" msg={`Aktifkan kembali ${m.kode}?`}>Aktifkan</ConfirmButton></form>}</td>}</tr>)}
         </tbody></table></TableWrap> : <Empty>Tidak ada bahan.</Empty>}
       </Card>
-      {master ? <Card id="tambah-bahan" title="➕ Tambah bahan baru"><form action={saveMaterial} className="grid-form">
+      {master ? <Card id="tambah-bahan" title="➕ Tambah bahan baru"><form action={saveMaterial} className="grid-form"><div className="col-span-full"><BranchBadge /></div>
         <Field label="Kode (mis. B008)"><input name="kode" className="input" required /></Field>
         <Field label="Nama bahan"><input name="nama" className="input" required /></Field>
         <Field label="Satuan"><input name="satuan" defaultValue="meter" className="input" /></Field>
@@ -57,7 +60,7 @@ export default function Page({ searchParams }: { searchParams: any }) {
     </div>}
 
     {tab === 'mutasi' && (() => {
-      const mov = all(`SELECT s.*, m.kode, m.nama, m.satuan, w.nomor wo_nomor, us.nama oleh FROM stock_movements s JOIN materials m ON m.id=s.material_id LEFT JOIN work_orders w ON w.id=s.wo_id LEFT JOIN users us ON us.id=s.user_id ORDER BY s.tanggal DESC, s.id DESC LIMIT 100`);
+      const mov = all(`SELECT s.*, m.kode, m.nama, m.satuan, w.nomor wo_nomor, us.nama oleh FROM stock_movements s JOIN materials m ON m.id=s.material_id LEFT JOIN work_orders w ON w.id=s.wo_id LEFT JOIN users us ON us.id=s.user_id WHERE s.branch_id=? ORDER BY s.tanggal DESC, s.id DESC LIMIT 100`, cab);
       const opt = activeMats.map((m: any) => <option key={m.id} value={m.id}>{m.kode} · {m.nama} (stok {num(m.stok)} {m.satuan})</option>);
       return <div className="space-y-5">
         <div className="grid gap-5 lg:grid-cols-2">

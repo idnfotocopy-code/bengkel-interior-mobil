@@ -7,12 +7,14 @@ import { rp, num, tgl, today } from '@/lib/util';
 import { Card, Flash, PageHeader, Empty, TableWrap, Field, Badge } from '@/components/ui';
 import { ConfirmButton } from '@/components/Confirm';
 import { saveMaterial, toggleMaterial, stockMove, deleteMaterial } from '../actions';
+import { requireBranch } from '@/lib/branch';
 export const dynamic = 'force-dynamic';
 
 export default function Page({ params, searchParams }: { params: { id: string }; searchParams: any }) {
   const u = requireUser('persediaan');
   const m = one('SELECT m.*, s.nama supplier FROM materials m LEFT JOIN suppliers s ON s.id=m.supplier_id WHERE m.id=?', Number(params.id));
   if (!m) redirect('/persediaan?err=' + encodeURIComponent('Bahan tidak ditemukan.'));
+  requireBranch(u, m.branch_id, '/persediaan');
   const cost = can(u.role, 'stok.lihat_biaya');
   const suppliers = all('SELECT * FROM suppliers ORDER BY nama');
   let saldo = 0;

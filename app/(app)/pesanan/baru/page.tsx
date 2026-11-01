@@ -8,19 +8,23 @@ import { today, addDays } from '@/lib/util';
 import { Card, Flash, PageHeader, Field } from '@/components/ui';
 import { VehiclePicker } from '@/components/VehiclePicker';
 import { createWO } from '../actions';
+import { activeBranchId } from '@/lib/branch';
+import { BranchBadge } from '@/components/BranchBadge';
 export const dynamic = 'force-dynamic';
 
 export default function Page({ searchParams }: { searchParams: any }) {
   const u = requireUser('pesanan');
   if (!can(u.role, 'pesanan.kelola')) redirect('/pesanan?err=' + encodeURIComponent('Anda tidak berhak membuat pesanan.'));
-  const customers = all('SELECT id, kode, nama FROM customers ORDER BY nama');
-  const vehicles = all('SELECT id, customer_id, nopol, merek, tipe FROM vehicles ORDER BY nopol');
-  const teknisi = all("SELECT id, nama FROM users WHERE role='teknisi' AND aktif=1 ORDER BY nama");
+  const cab = activeBranchId(u);
+  const customers = all('SELECT id, kode, nama FROM customers WHERE branch_id=? ORDER BY nama', cab);
+  const vehicles = all('SELECT v.id, v.customer_id, v.nopol, v.merek, v.tipe FROM vehicles v JOIN customers c ON c.id=v.customer_id WHERE c.branch_id=? ORDER BY v.nopol', cab);
+  const teknisi = all("SELECT id, nama FROM users WHERE role='teknisi' AND aktif=1 AND (branch_id=? OR branch_id IS NULL) ORDER BY nama", cab);
   const jobs = all<{ nama: string }>('SELECT nama FROM job_types WHERE aktif=1 ORDER BY urutan, nama');
   return (<div>
     <PageHeader title="Pesanan baru" desc="Nomor pesanan dibuat otomatis (BIM-YYYY-####) saat disimpan."><Link href="/pesanan" className="btn">← Kembali</Link></PageHeader>
     <Flash sp={searchParams} />
     <form action={createWO} className="space-y-5 max-w-4xl">
+      <BranchBadge />
       <Card title="Pelanggan & kendaraan"><div className="grid gap-3 sm:grid-cols-2">
         <VehiclePicker customers={customers} vehicles={vehicles} customerId={Number(searchParams?.customer_id) || undefined} vehicleId={Number(searchParams?.vehicle_id) || undefined} />
       </div><p className="text-xs text-slate-500 mt-2">Pelanggan/kendaraan belum ada? <Link className="link" href="/pelanggan">Tambah pelanggan</Link> · <Link className="link" href="/kendaraan">Tambah kendaraan</Link></p></Card>

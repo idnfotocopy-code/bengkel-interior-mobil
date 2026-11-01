@@ -1,6 +1,6 @@
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
-import { settings } from './db';
+import { settings, one } from './db';
 import { uploadPath } from './upload';
 import { tgl, tglJam, nowStr } from './util';
 
@@ -16,12 +16,23 @@ export function createDoc(title: string, landscape = false): Doc {
   doc.font('Helvetica');
   return doc;
 }
+/** Tandai dokumen dengan cabangnya: kop, kota tanda tangan, dan footer memakai data cabang (fallback ke Pengaturan usaha). */
+export function setDocBranch(doc: Doc, branchId: number | null | undefined) {
+  (doc as any).__branch = branchId ? one('SELECT * FROM branches WHERE id=?', branchId) : null;
+  return doc;
+}
+const docBranch = (doc: Doc): any => (doc as any).__branch || null;
+/** Identitas efektif dokumen: identitas usaha global + alamat/telepon/kota cabang bila diisi. */
+function ident(doc: Doc): Record<string, any> {
+  const s: Record<string, any> = settings(); const b = docBranch(doc);
+  return { ...s, alamat: (b?.alamat || s.alamat || ''), telepon: (b?.telepon || s.telepon || ''), kota: (b?.kota || s.kota || ''), cabang: b ? `Cabang ${b.nama}${b.kota && b.kota !== b.nama ? ' — ' + b.kota : ''}` : '' };
+}
 const pageW = (doc: Doc) => doc.page.width;
 const cw = (doc: Doc) => pageW(doc) - M * 2;
 
 /** Kop dokumen: logo + identitas usaha + judul dokumen di kanan. */
 export function kop(doc: Doc, title: string, meta: [string, string][] = []) {
-  const s = settings();
+  const s = ident(doc);
   const top = 36; const W = pageW(doc);
   const logo = uploadPath(s.logo);
   let x = M;
@@ -30,6 +41,7 @@ export function kop(doc: Doc, title: string, meta: [string, string][] = []) {
   const leftW = W - M - x - 200;
   doc.fillColor(BRAND).font('Helvetica-Bold').fontSize(15).text(s.nama_usaha, x, top, { width: leftW });
   doc.fillColor('#555').font('Helvetica-Oblique').fontSize(8).text(s.tagline || '', x, doc.y + 1, { width: leftW });
+  if (s.cabang) doc.fillColor(BRAND).font('Helvetica-Bold').fontSize(8.5).text(s.cabang, x, doc.y + 1, { width: leftW });
   doc.font('Helvetica').fontSize(8).fillColor('#333').text(s.alamat || '', x, doc.y + 2, { width: leftW });
   doc.text([s.telepon && `Telp/WA ${s.telepon}`, s.email].filter(Boolean).join(' • '), x, doc.y, { width: leftW });
   const leftBottom = doc.y;
@@ -152,7 +164,7 @@ export function signatures(doc: Doc, blocks: SignBlock[], place?: string) {
 }
 
 export function finalize(doc: Doc, info: { by: string; docNo?: string }): Promise<Buffer> {
-  const s = settings();
+  const s = ident(doc);
   const range = doc.bufferedPageRange();
   for (let i = range.start; i < range.start + range.count; i++) {
     doc.switchToPage(i);
@@ -162,7 +174,7 @@ export function finalize(doc: Doc, info: { by: string; docNo?: string }): Promis
     doc.font('Helvetica').fontSize(7).fillColor('#555');
     doc.text(`Dicetak: ${tglJam(nowStr())} WIB oleh ${info.by}${info.docNo ? ' • No. Dok: ' + info.docNo : ''}`, M, y, { width: W - M * 2 - 80, lineBreak: false });
     doc.text(`Hal. ${i + 1}/${range.count}`, W - M - 80, y, { width: 80, align: 'right', lineBreak: false });
-    doc.text([s.nama_usaha, s.alamat, s.telepon].filter(Boolean).join(' • '), M, y + 10, { width: W - M * 2, lineBreak: false });
+    doc.text([s.nama_usaha + (s.cabang ? ' — ' + s.cabang : ''), s.alamat, s.telepon].filter(Boolean).join(' • '), M, y + 10, { width: W - M * 2, lineBreak: false });
     doc.page.margins.bottom = mb;
   }
   doc.fillColor('#000');
@@ -175,7 +187,7 @@ export function finalize(doc: Doc, info: { by: string; docNo?: string }): Promis
   });
 }
 
-export function placeDate(dateStr?: string) { return `${settings().kota || 'Jakarta'}, ${tgl(dateStr || nowStr())}`; }
+export function placeDate(doc: Doc, dateStr?: string) { return `${ident(doc).kota || 'Jakarta'}, ${tgl(dateStr || nowStr())}`; }
 export function pdfResponse(buf: Buffer, filename: string) {
   return new Response(new Uint8Array(buf), { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${filename.replace(/[^\w.\-]/g, '_')}"`, 'Cache-Control': 'no-store' } });
 }

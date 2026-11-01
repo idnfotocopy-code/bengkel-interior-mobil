@@ -7,6 +7,8 @@ import { EXPENSE_CATEGORIES, PAYMENT_TYPES, PAYMENT_METHODS } from '@/lib/consta
 import { rp, tgl, today, periodFromSp } from '@/lib/util';
 import { Card, Flash, PageHeader, Empty, TableWrap, Tabs, Stat, InvBadge, Field, PeriodFilter } from '@/components/ui';
 import { ConfirmButton } from '@/components/Confirm';
+import { activeBranchId } from '@/lib/branch';
+import { BranchBadge } from '@/components/BranchBadge';
 import { addPayment, updatePayment, deletePayment, addExpense, updateExpense, deleteExpense, saveCashAccount, deleteCashAccount, createInvoice, updateInvoice, cancelInvoice } from './actions';
 export const dynamic = 'force-dynamic';
 
@@ -14,8 +16,9 @@ export default function Page({ searchParams }: { searchParams: any }) {
   const u = requireUser('keuangan');
   const tab = ['pembayaran', 'pengeluaran', 'invoice', 'piutang', 'kas'].includes(searchParams?.tab) ? searchParams.tab : 'pembayaran';
   const { from, to } = periodFromSp(searchParams);
-  const f = periodFinance(from, to);
-  const pr = receivables();
+  const cab = activeBranchId(u);
+  const f = periodFinance(from, to, cab);
+  const pr = receivables(cab);
   const qs = `from=${from}&to=${to}`;
   const tabs = [
     { key: 'pembayaran', label: '💵 Pembayaran masuk', href: `/keuangan?tab=pembayaran&${qs}` },
@@ -24,8 +27,8 @@ export default function Page({ searchParams }: { searchParams: any }) {
     { key: 'piutang', label: `⏳ Piutang (${pr.rows.length})`, href: `/keuangan?tab=piutang&${qs}` },
     { key: 'kas', label: '🏦 Kas & bank', href: `/keuangan?tab=kas&${qs}` },
   ];
-  const accounts = all('SELECT * FROM cash_accounts WHERE aktif=1 ORDER BY id');
-  const openWos = all("SELECT w.id, w.nomor, c.nama pelanggan FROM work_orders w JOIN customers c ON c.id=w.customer_id WHERE w.status!='Dibatalkan' ORDER BY w.id DESC LIMIT 200");
+  const accounts = all('SELECT * FROM cash_accounts WHERE aktif=1 AND branch_id=? ORDER BY id', cab);
+  const openWos = all("SELECT w.id, w.nomor, c.nama pelanggan FROM work_orders w JOIN customers c ON c.id=w.customer_id WHERE w.status!='Dibatalkan' AND w.branch_id=? ORDER BY w.id DESC LIMIT 200", cab);
   const woOpts = openWos.map((w: any) => <option key={w.id} value={w.id}>{w.nomor} · {w.pelanggan}</option>);
   const acctOpts = accounts.map((a: any) => <option key={a.id} value={a.id}>{a.nama}</option>);
   const canBayar = can(u.role, 'bayar.catat'), canEditBayar = can(u.role, 'bayar.hapus'), canInv = can(u.role, 'invoice.kelola'), canBiaya = can(u.role, 'biaya.kelola'), canKas = can(u.role, 'kas.kelola');
@@ -44,10 +47,11 @@ export default function Page({ searchParams }: { searchParams: any }) {
     <Tabs items={tabs} active={tab} />
 
     {tab === 'pembayaran' && (() => {
-      const rows = all(`SELECT p.*, w.nomor wo_nomor, c.nama pelanggan, a.nama akun FROM payments p LEFT JOIN work_orders w ON w.id=p.wo_id LEFT JOIN customers c ON c.id=w.customer_id LEFT JOIN cash_accounts a ON a.id=p.cash_account_id WHERE p.tanggal BETWEEN ? AND ? ORDER BY p.tanggal DESC, p.id DESC`, from, to);
+      const rows = all(`SELECT p.*, w.nomor wo_nomor, c.nama pelanggan, a.nama akun FROM payments p LEFT JOIN work_orders w ON w.id=p.wo_id LEFT JOIN customers c ON c.id=w.customer_id LEFT JOIN cash_accounts a ON a.id=p.cash_account_id WHERE p.branch_id=? AND p.tanggal BETWEEN ? AND ? ORDER BY p.tanggal DESC, p.id DESC`, cab, from, to);
       const bk = `/keuangan?tab=pembayaran&${qs}`;
       return <div className="space-y-5">
         {canBayar && <Card id="tambah" title="➕ Tambah pembayaran"><form action={addPayment} className="grid-form">
+          <div className="col-span-full"><BranchBadge label="Cabang" /></div>
           <input type="hidden" name="back" value={bk} />
           <Field label="Pesanan *"><select name="wo_id" className="input" required><option value="">— pilih pesanan —</option>{woOpts}</select></Field>
           <Field label="Jenis"><select name="jenis" className="input">{PAYMENT_TYPES.map(x => <option key={x}>{x}</option>)}</select></Field>
@@ -78,10 +82,11 @@ export default function Page({ searchParams }: { searchParams: any }) {
     })()}
 
     {tab === 'pengeluaran' && (() => {
-      const rows = all(`SELECT e.*, w.nomor wo_nomor, a.nama akun, us.nama oleh FROM expenses e LEFT JOIN work_orders w ON w.id=e.wo_id LEFT JOIN cash_accounts a ON a.id=e.cash_account_id LEFT JOIN users us ON us.id=e.user_id WHERE e.tanggal BETWEEN ? AND ? ORDER BY e.tanggal DESC, e.id DESC`, from, to);
-      const wos = all("SELECT id, nomor FROM work_orders WHERE status!='Dibatalkan' ORDER BY id DESC LIMIT 50");
+      const rows = all(`SELECT e.*, w.nomor wo_nomor, a.nama akun, us.nama oleh FROM expenses e LEFT JOIN work_orders w ON w.id=e.wo_id LEFT JOIN cash_accounts a ON a.id=e.cash_account_id LEFT JOIN users us ON us.id=e.user_id WHERE e.branch_id=? AND e.tanggal BETWEEN ? AND ? ORDER BY e.tanggal DESC, e.id DESC`, cab, from, to);
+      const wos = all("SELECT id, nomor FROM work_orders WHERE status!='Dibatalkan' AND branch_id=? ORDER BY id DESC LIMIT 50", cab);
       return <div className="space-y-5">
         {canBiaya && <Card id="tambah" title="➕ Tambah pengeluaran"><form action={addExpense} className="grid-form">
+          <div className="col-span-full"><BranchBadge /></div>
           <Field label="Tanggal"><input type="date" name="tanggal" defaultValue={today()} className="input" /></Field>
           <Field label="Kategori"><select name="kategori" className="input">{EXPENSE_CATEGORIES.map(k => <option key={k}>{k}</option>)}</select></Field>
           <Field label="Jumlah (Rp)"><input type="number" step="any" name="jumlah" min={1} className="input" required /></Field>
@@ -111,7 +116,7 @@ export default function Page({ searchParams }: { searchParams: any }) {
     })()}
 
     {tab === 'invoice' && (() => {
-      const rows = all(`SELECT i.*, w.nomor wo_nomor, c.nama pelanggan, (SELECT COALESCE(SUM(jumlah),0) FROM payments p WHERE p.wo_id=i.wo_id) dibayar FROM invoices i JOIN work_orders w ON w.id=i.wo_id JOIN customers c ON c.id=w.customer_id WHERE i.tanggal BETWEEN ? AND ? ORDER BY i.id DESC`, from, to);
+      const rows = all(`SELECT i.*, w.nomor wo_nomor, c.nama pelanggan, (SELECT COALESCE(SUM(jumlah),0) FROM payments p WHERE p.wo_id=i.wo_id) dibayar FROM invoices i JOIN work_orders w ON w.id=i.wo_id JOIN customers c ON c.id=w.customer_id WHERE i.branch_id=? AND i.tanggal BETWEEN ? AND ? ORDER BY i.id DESC`, cab, from, to);
       const bk = `/keuangan?tab=invoice&${qs}`;
       return <div className="space-y-5">
         {canInv && <Card id="tambah" title="➕ Buat invoice"><form action={createInvoice} className="grid-form">
@@ -146,7 +151,7 @@ export default function Page({ searchParams }: { searchParams: any }) {
     {tab === 'kas' && <div className="space-y-5">
       <Card pad={false} title="Saldo kas & bank (saldo awal + pembayaran masuk − pengeluaran)">
         <TableWrap><table className="tbl"><thead><tr><th>Akun</th><th>Jenis</th><th>No. rekening</th><th className="num">Saldo awal</th><th className="num">Masuk</th><th className="num">Keluar</th><th className="num">Saldo</th>{canKas && <th></th>}</tr></thead><tbody>
-          {cashBalances().map((a: any) => <tr key={a.id} className={a.aktif ? '' : 'text-slate-400'}><td>{a.nama}{!a.aktif && <span className="ml-1 text-xs">(nonaktif)</span>}</td><td className="capitalize">{a.jenis}</td><td>{a.no_rekening || '-'}</td><td className="num">{rp(a.saldo_awal)}</td><td className="num">{rp(a.masuk)}</td><td className="num">{rp(a.keluar)}</td><td className="num font-bold">{rp(a.saldo)}</td>
+          {cashBalances(cab).map((a: any) => <tr key={a.id} className={a.aktif ? '' : 'text-slate-400'}><td>{a.nama}{!a.aktif && <span className="ml-1 text-xs">(nonaktif)</span>}</td><td className="capitalize">{a.jenis}</td><td>{a.no_rekening || '-'}</td><td className="num">{rp(a.saldo_awal)}</td><td className="num">{rp(a.masuk)}</td><td className="num">{rp(a.keluar)}</td><td className="num font-bold">{rp(a.saldo)}</td>
             {canKas && <td className="whitespace-nowrap"><details className="inline-block align-top"><summary className="btn btn-sm list-none cursor-pointer">✏️ Edit</summary>
               <form action={saveCashAccount} className="mt-2 grid gap-1 w-64 rounded border bg-white p-2 shadow-lg">
                 <input type="hidden" name="id" value={a.id} />
@@ -160,6 +165,7 @@ export default function Page({ searchParams }: { searchParams: any }) {
         </tbody></table></TableWrap>
       </Card>
       {canKas && <Card id="tambah" title="➕ Tambah akun kas / bank"><form action={saveCashAccount} className="grid-form">
+        <div className="col-span-full"><BranchBadge /></div>
         <Field label="Nama akun"><input name="nama" className="input" required /></Field>
         <Field label="Jenis"><select name="jenis" className="input"><option value="kas">Kas</option><option value="bank">Bank</option><option value="ewallet">E-wallet</option></select></Field>
         <Field label="No. rekening"><input name="no_rekening" className="input" /></Field>

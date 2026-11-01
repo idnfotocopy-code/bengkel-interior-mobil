@@ -16,6 +16,7 @@ export default function Page({ searchParams }: { searchParams: any }) {
     <PageHeader title="Pengaturan usaha" desc="Data ini tampil pada kop seluruh dokumen PDF (penawaran, work order, invoice, kuitansi, serah terima, dan laporan).">{edit ? <span className="badge bg-emerald-100 text-emerald-800">✏️ Mode edit</span> : <span className="badge bg-stone-100 text-stone-600">Hanya lihat</span>}</PageHeader>
     <Flash sp={searchParams} />
     <form action={saveSettings} className="space-y-5 max-w-4xl"><fieldset disabled={!edit} className="space-y-5">
+      <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">🏢 <b>Multi cabang:</b> identitas usaha di bawah ini berlaku <b>global</b> untuk semua cabang (nama usaha, logo, rekening, ketentuan dokumen). Alamat & telepon tiap cabang diatur di master <a className="link" href="/cabang">Cabang</a> dan otomatis dipakai pada kop dokumen PDF cabang tersebut.</div>
       <Card title="Identitas bengkel"><div className="grid-form">
         <Field label="Nama usaha"><input name="nama_usaha" defaultValue={st.nama_usaha} className="input" required /></Field>
         <Field label="Tagline" className="sm:col-span-2"><input name="tagline" defaultValue={st.tagline} className="input" /></Field>

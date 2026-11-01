@@ -2,12 +2,14 @@ import { requireUser } from '@/lib/auth';
 import { all } from '@/lib/db';
 import { can } from '@/lib/rbac';
 import { periodFinance, receivables, stockReport } from '@/lib/biz';
+import { activeBranch } from '@/lib/branch';
 import { rp, num, tgl, periodFromSp } from '@/lib/util';
 import { Card, Flash, PageHeader, TableWrap, PeriodFilter, Stat } from '@/components/ui';
 export const dynamic = 'force-dynamic';
 
 export default function Page({ searchParams }: { searchParams: any }) {
   const u = requireUser('laporan');
+  const cabang = activeBranch(u), cab = cabang.id;
   const { from, to } = periodFromSp(searchParams);
   const qs = `from=${from}&to=${to}`;
   const docs = [
@@ -16,12 +18,12 @@ export default function Page({ searchParams }: { searchParams: any }) {
     { perm: 'laporan.labarugi', doc: 'laba-rugi', title: 'Laporan Laba Rugi', desc: 'Omzet − biaya bahan − tenaga kerja − operasional = laba bersih.' },
     { perm: 'laporan.piutang', doc: 'piutang', title: 'Laporan Piutang', desc: 'Tagihan pelanggan yang belum lunas per tanggal cetak, dengan umur piutang.' },
   ].filter(d => can(u.role, d.perm as any));
-  const f = can(u.role, 'laporan.labarugi') ? periodFinance(from, to) : null;
-  const pr = can(u.role, 'laporan.piutang') ? receivables() : null;
-  const stok = can(u.role, 'laporan.stok') ? stockReport(from, to) : null;
-  const wo = all(`SELECT status, COUNT(*) n FROM work_orders WHERE tgl_masuk BETWEEN ? AND ? GROUP BY status`, from, to);
+  const f = can(u.role, 'laporan.labarugi') ? periodFinance(from, to, cab) : null;
+  const pr = can(u.role, 'laporan.piutang') ? receivables(cab) : null;
+  const stok = can(u.role, 'laporan.stok') ? stockReport(from, to, cab) : null;
+  const wo = all(`SELECT status, COUNT(*) n FROM work_orders WHERE branch_id=? AND tgl_masuk BETWEEN ? AND ? GROUP BY status`, cab, from, to);
   return (<div>
-    <PageHeader title="Laporan" desc="Pilih periode, lalu unduh laporan PDF. Semua angka dihitung langsung dari transaksi." />
+    <PageHeader title="Laporan" desc={`Cabang ${cabang.nama} · pilih periode, lalu unduh laporan PDF. Semua angka dihitung langsung dari transaksi cabang ini.`} />
     <Flash sp={searchParams} />
     <PeriodFilter from={from} to={to} />
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 mb-6">

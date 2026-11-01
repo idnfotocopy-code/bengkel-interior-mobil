@@ -8,18 +8,20 @@ import { woSummary } from '@/lib/biz';
 import { Card, Flash, PageHeader, Empty, TableWrap, Field, StatusBadge } from '@/components/ui';
 import { ConfirmButton } from '@/components/Confirm';
 import { saveCustomer, deleteCustomer } from '../actions';
+import { requireBranch, getBranch } from '@/lib/branch';
 export const dynamic = 'force-dynamic';
 
 export default function Page({ params, searchParams }: { params: { id: string }; searchParams: any }) {
   const u = requireUser('pelanggan');
   const c = one('SELECT * FROM customers WHERE id=?', Number(params.id));
   if (!c) notFound();
+  requireBranch(u, c.branch_id, '/pelanggan');
   const vehicles = all('SELECT * FROM vehicles WHERE customer_id=? ORDER BY id', c.id);
   const wos = all('SELECT w.*, v.nopol FROM work_orders w JOIN vehicles v ON v.id=w.vehicle_id WHERE w.customer_id=? ORDER BY w.id DESC', c.id);
   const pays = all('SELECT p.*, w.nomor wo FROM payments p JOIN work_orders w ON w.id=p.wo_id WHERE w.customer_id=? ORDER BY p.tanggal DESC', c.id);
   const edit = can(u.role, 'pelanggan.kelola');
   return (<div>
-    <PageHeader title={c.nama} desc={`${c.kode} · pelanggan sejak ${tgl(c.tgl_pertama)}`}>
+    <PageHeader title={c.nama} desc={`${c.kode} · Cabang ${getBranch(c.branch_id)?.nama || '-'} · pelanggan sejak ${tgl(c.tgl_pertama)}`}>
       <Link href="/pelanggan" className="btn">← Kembali</Link>
       {edit && <Link href={`/kendaraan?customer_id=${c.id}`} className="btn">+ Kendaraan</Link>}
       {edit && <Link href={`/pesanan/baru?customer_id=${c.id}`} className="btn btn-primary">+ Pesanan baru</Link>}

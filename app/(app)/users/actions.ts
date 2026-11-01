@@ -16,6 +16,10 @@ export async function saveUser(fd: FormData) {
   const role = s(fd, 'role');
   if (!(ROLES as readonly string[]).includes(role)) redirect(withMsg(back, 'err', 'Peran tidak valid.'));
   const aktif = fd.get('aktif') ? 1 : 0;
+  // Cabang: wajib untuk selain pemilik; pemilik boleh kosong (= semua cabang, bisa berpindah cabang)
+  const branch_id = Number(fd.get('branch_id') || 0) || null;
+  if (branch_id && !one('SELECT id FROM branches WHERE id=?', branch_id)) redirect(withMsg(back, 'err', 'Cabang tidak valid.'));
+  if (role !== 'pemilik' && !branch_id) redirect(withMsg(back, 'err', 'Pilih cabang untuk pengguna selain pemilik (hanya pemilik yang boleh "Semua cabang").'));
   if (id === u.id && (!aktif || role !== 'pemilik')) redirect(withMsg(back, 'err', 'Anda tidak dapat menonaktifkan atau menurunkan peran akun sendiri.'));
   if (id) {
     const old = one('SELECT * FROM users WHERE id=?', id);
@@ -26,17 +30,17 @@ export async function saveUser(fd: FormData) {
   if (pw && pw !== s(fd, 'password2') && fd.has('password2')) redirect(withMsg(back, 'err', 'Konfirmasi kata sandi tidak sama.'));
   if (pw && pw.length < 8) redirect(withMsg(back, 'err', 'Kata sandi minimal 8 karakter.'));
   if (id) {
-    const data: any = { nama: s(fd, 'nama'), role, aktif, telepon: s(fd, 'telepon') };
+    const data: any = { nama: s(fd, 'nama'), role, aktif, telepon: s(fd, 'telepon'), branch_id };
     if (pw) data.password_hash = bcrypt.hashSync(pw, 10);
     update('users', id, data);
     if (!aktif || pw) run('DELETE FROM sessions WHERE user_id=?', id);
-    audit(u, 'UBAH', 'users', id, `${role} aktif=${aktif}${pw ? ' reset-sandi' : ''}`);
+    audit(u, 'UBAH', 'users', id, `${role} cabang=${branch_id ?? 'semua'} aktif=${aktif}${pw ? ' reset-sandi' : ''}`);
   } else {
     const username = s(fd, 'username').toLowerCase();
     if (!/^[a-z0-9_.]{3,30}$/.test(username)) redirect(withMsg(back, 'err', 'Username 3–30 karakter (huruf kecil, angka, titik, garis bawah).'));
     if (one('SELECT id FROM users WHERE username=?', username)) redirect(withMsg(back, 'err', 'Username sudah dipakai.'));
     if (!pw) redirect(withMsg(back, 'err', 'Kata sandi wajib untuk pengguna baru.'));
-    const nid = insert('users', { username, nama: s(fd, 'nama') || username, role, aktif: 1, telepon: s(fd, 'telepon'), password_hash: bcrypt.hashSync(pw, 10), created_at: nowStr() });
+    const nid = insert('users', { username, nama: s(fd, 'nama') || username, role, aktif: 1, telepon: s(fd, 'telepon'), password_hash: bcrypt.hashSync(pw, 10), branch_id, created_at: nowStr() });
     audit(u, 'TAMBAH', 'users', nid, `${username} ${role}`);
   }
   redirect(withMsg(id ? back : '/users', 'ok', id ? 'Perubahan pengguna disimpan.' : 'Pengguna baru ditambahkan.'));

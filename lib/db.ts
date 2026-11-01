@@ -22,7 +22,8 @@ CREATE TABLE IF NOT EXISTS work_order_items(id INTEGER PRIMARY KEY, wo_id INTEGE
 CREATE TABLE IF NOT EXISTS wo_status_history(id INTEGER PRIMARY KEY, wo_id INTEGER NOT NULL, dari TEXT, ke TEXT NOT NULL, catatan TEXT, user_id INTEGER, at TEXT);
 CREATE TABLE IF NOT EXISTS work_progress(id INTEGER PRIMARY KEY, wo_id INTEGER NOT NULL, user_id INTEGER, catatan TEXT NOT NULL, persen INTEGER, foto TEXT, at TEXT);
 CREATE TABLE IF NOT EXISTS suppliers(id INTEGER PRIMARY KEY, nama TEXT NOT NULL, telepon TEXT, alamat TEXT);
-CREATE TABLE IF NOT EXISTS materials(id INTEGER PRIMARY KEY, kode TEXT UNIQUE NOT NULL, nama TEXT NOT NULL, satuan TEXT, stok REAL NOT NULL DEFAULT 0, minimum REAL NOT NULL DEFAULT 0, harga_beli REAL NOT NULL DEFAULT 0, supplier_id INTEGER, lokasi TEXT, aktif INTEGER NOT NULL DEFAULT 1);
+CREATE TABLE IF NOT EXISTS branches(id INTEGER PRIMARY KEY, kode TEXT UNIQUE NOT NULL, nama TEXT NOT NULL, kota TEXT, alamat TEXT, telepon TEXT, aktif INTEGER NOT NULL DEFAULT 1, created_at TEXT);
+CREATE TABLE IF NOT EXISTS materials(id INTEGER PRIMARY KEY, branch_id INTEGER, kode TEXT NOT NULL, nama TEXT NOT NULL, satuan TEXT, stok REAL NOT NULL DEFAULT 0, minimum REAL NOT NULL DEFAULT 0, harga_beli REAL NOT NULL DEFAULT 0, supplier_id INTEGER, lokasi TEXT, aktif INTEGER NOT NULL DEFAULT 1, UNIQUE(branch_id, kode));
 CREATE TABLE IF NOT EXISTS stock_movements(id INTEGER PRIMARY KEY, material_id INTEGER NOT NULL, tipe TEXT NOT NULL, qty REAL NOT NULL, harga REAL DEFAULT 0, wo_id INTEGER, alasan TEXT, user_id INTEGER, tanggal TEXT NOT NULL, at TEXT);
 CREATE TABLE IF NOT EXISTS material_usage(id INTEGER PRIMARY KEY, wo_id INTEGER NOT NULL, material_id INTEGER NOT NULL, qty REAL NOT NULL, harga_satuan REAL NOT NULL, movement_id INTEGER, user_id INTEGER, tanggal TEXT, batal INTEGER DEFAULT 0);
 CREATE TABLE IF NOT EXISTS cash_accounts(id INTEGER PRIMARY KEY, nama TEXT NOT NULL, jenis TEXT DEFAULT 'kas', no_rekening TEXT, saldo_awal REAL DEFAULT 0, aktif INTEGER DEFAULT 1);
@@ -46,6 +47,7 @@ export function db(): Database.Database {
     d.pragma('journal_mode = WAL');
     d.pragma('foreign_keys = ON');
     d.exec(SCHEMA);
+    migrateBranches(d);
     g.__bimdb = d;
     const cnt = (d.prepare('SELECT COUNT(*) n FROM users').get() as any).n;
     if (fresh || cnt === 0) {
@@ -56,6 +58,55 @@ export function db(): Database.Database {
     seedJobTypes(d);
   }
   return g.__bimdb;
+}
+
+/** Tabel operasional yang dipisah per cabang (kolom branch_id). */
+export const BRANCH_TABLES = ['customers', 'work_orders', 'materials', 'stock_movements', 'cash_accounts', 'invoices', 'payments', 'expenses'] as const;
+export const DEFAULT_BRANCHES = [
+  { kode: 'BKS', nama: 'Bekasi', kota: 'Bekasi' },
+  { kode: 'JKT', nama: 'Jakarta', kota: 'Jakarta' },
+];
+
+/**
+ * Migrasi multi-cabang (aman dijalankan berulang):
+ * - buat tabel branches + isi Bekasi & Jakarta bila kosong
+ * - tambah kolom branch_id pada tabel operasional & users bila belum ada
+ * - data lama dipindah ke cabang pertama (Bekasi); pemilik = semua cabang (NULL), pengguna lain = Bekasi
+ * - kode bahan unik per cabang
+ * - setiap cabang baru otomatis punya akun "Kas Tunai" (saldo 0)
+ */
+export function migrateBranches(d: Database.Database) {
+  const cols = (t: string) => new Set((d.prepare(`PRAGMA table_info(${t})`).all() as any[]).map(c => c.name));
+  d.transaction(() => {
+    const now = nowStr();
+    const newBranches: number[] = [];
+    if (!(d.prepare('SELECT COUNT(*) n FROM branches').get() as any).n) {
+      for (const b of DEFAULT_BRANCHES) newBranches.push(Number(d.prepare('INSERT INTO branches(kode,nama,kota,alamat,telepon,aktif,created_at) VALUES(?,?,?,?,?,1,?)').run(b.kode, b.nama, b.kota, '', '', now).lastInsertRowid));
+    }
+    const first = (d.prepare('SELECT id FROM branches ORDER BY id LIMIT 1').get() as any).id as number;
+    // bahan: tabel lama punya UNIQUE(kode) global → bangun ulang dengan UNIQUE(branch_id,kode)
+    if (!cols('materials').has('branch_id')) {
+      d.pragma('foreign_keys = OFF');
+      d.exec(`CREATE TABLE materials_new(id INTEGER PRIMARY KEY, branch_id INTEGER, kode TEXT NOT NULL, nama TEXT NOT NULL, satuan TEXT, stok REAL NOT NULL DEFAULT 0, minimum REAL NOT NULL DEFAULT 0, harga_beli REAL NOT NULL DEFAULT 0, supplier_id INTEGER, lokasi TEXT, aktif INTEGER NOT NULL DEFAULT 1, UNIQUE(branch_id, kode));
+        INSERT INTO materials_new(id,branch_id,kode,nama,satuan,stok,minimum,harga_beli,supplier_id,lokasi,aktif) SELECT id,NULL,kode,nama,satuan,stok,minimum,harga_beli,supplier_id,lokasi,aktif FROM materials;
+        DROP TABLE materials; ALTER TABLE materials_new RENAME TO materials;`);
+      d.pragma('foreign_keys = ON');
+    }
+    for (const t of BRANCH_TABLES) {
+      if (!cols(t).has('branch_id')) d.exec(`ALTER TABLE ${t} ADD COLUMN branch_id INTEGER`);
+      d.prepare(`UPDATE ${t} SET branch_id=? WHERE branch_id IS NULL`).run(first);
+      d.exec(`CREATE INDEX IF NOT EXISTS ix_${t}_branch ON ${t}(branch_id)`);
+    }
+    if (!cols('users').has('branch_id')) {
+      d.exec('ALTER TABLE users ADD COLUMN branch_id INTEGER');
+      d.prepare("UPDATE users SET branch_id=NULL WHERE role='pemilik'").run();
+      d.prepare("UPDATE users SET branch_id=? WHERE role!='pemilik'").run(first);
+    }
+    for (const id of newBranches) {
+      const has = (d.prepare('SELECT COUNT(*) n FROM cash_accounts WHERE branch_id=?').get(id) as any).n;
+      if (!has) d.prepare("INSERT INTO cash_accounts(nama,jenis,saldo_awal,aktif,branch_id) VALUES('Kas Tunai','kas',0,1,?)").run(id);
+    }
+  })();
 }
 
 /** Isi master jenis pekerjaan dari daftar bawaan bila tabel masih kosong (instalasi baru / DB lama sebelum modul ini). */

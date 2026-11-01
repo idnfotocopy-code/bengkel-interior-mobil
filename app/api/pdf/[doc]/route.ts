@@ -5,6 +5,7 @@ import { one } from '@/lib/db';
 import { pdfResponse } from '@/lib/pdf';
 import { periodFromSp } from '@/lib/util';
 import * as D from '@/lib/documents';
+import { activeBranchId, canAccessBranch } from '@/lib/branch';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -22,11 +23,17 @@ export async function GET(req: NextRequest, { params }: { params: { doc: string 
   const { from, to } = periodFromSp(sp);
   // teknisi hanya dokumen pesanan yang ditugaskan; harga penawaran tidak untuk teknisi/gudang
   if (['penawaran', 'wo', 'serah-terima'].includes(params.doc)) {
-    const w = one('SELECT teknisi_id FROM work_orders WHERE id=?', id);
+    const w = one('SELECT teknisi_id, branch_id FROM work_orders WHERE id=?', id);
     if (!w) return txt('Pesanan tidak ditemukan.', 404);
+    if (!canAccessBranch(u, w.branch_id)) return txt('Pesanan ini milik cabang lain.', 403);
     if (!can(u.role, 'pesanan.semua') && w.teknisi_id !== u.id) return txt('Pesanan ini tidak ditugaskan kepada Anda.', 403);
     if (params.doc === 'penawaran' && ['teknisi', 'gudang'].includes(u.role)) return txt('Anda tidak memiliki akses ke dokumen harga.', 403);
   }
+  if (params.doc === 'invoice' || params.doc === 'kuitansi') {
+    const r = one(`SELECT branch_id FROM ${params.doc === 'invoice' ? 'invoices' : 'payments'} WHERE id=?`, id);
+    if (r && !canAccessBranch(u, r.branch_id)) return txt('Dokumen ini milik cabang lain.', 403);
+  }
+  const b = activeBranchId(u);
   try {
     let out;
     switch (params.doc) {
@@ -35,10 +42,10 @@ export async function GET(req: NextRequest, { params }: { params: { doc: string 
       case 'serah-terima': out = await D.serahTerima(u, id); break;
       case 'invoice': out = await D.invoice(u, id); break;
       case 'kuitansi': out = await D.kuitansi(u, id); break;
-      case 'stok': out = await D.laporanStok(u, from, to, can(u.role, 'stok.lihat_biaya')); break;
-      case 'transaksi': out = await D.laporanTransaksi(u, from, to); break;
-      case 'laba-rugi': out = await D.laporanLabaRugi(u, from, to); break;
-      default: out = await D.laporanPiutang(u);
+      case 'stok': out = await D.laporanStok(u, b, from, to, can(u.role, 'stok.lihat_biaya')); break;
+      case 'transaksi': out = await D.laporanTransaksi(u, b, from, to); break;
+      case 'laba-rugi': out = await D.laporanLabaRugi(u, b, from, to); break;
+      default: out = await D.laporanPiutang(u, b);
     }
     return pdfResponse(out.buf, out.filename);
   } catch (e: any) {
