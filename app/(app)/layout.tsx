@@ -1,5 +1,5 @@
 import { requireUser } from '@/lib/auth';
-import { menusFor, ROLE_LABEL } from '@/lib/rbac';
+import { menusFor, roleLabel } from '@/lib/rbac';
 import { one, settings } from '@/lib/db';
 import { Nav } from '@/components/Nav';
 import { logoutAction } from '../login/actions';
@@ -39,7 +39,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               : <span className="badge bg-brand-50 text-brand-800 border border-brand-200" title="Akun Anda terkunci pada cabang ini">🏢 Cabang: {cab.nama} 🔒</span>}
             <div className="text-right hidden sm:block leading-tight">
               <div className="text-sm font-semibold">{u.nama}</div>
-              <div className="text-xs text-brand-600">{ROLE_LABEL[u.role]}</div>
+              <div className="text-xs text-brand-600">{roleLabel(u.role)}</div>
             </div>
             <form action={logoutAction}><button className="btn btn-sm">Keluar</button></form>
           </div>

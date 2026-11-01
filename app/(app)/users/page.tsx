@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { requireUser } from '@/lib/auth';
 import { all } from '@/lib/db';
-import { ROLES, ROLE_LABEL, ROLE_COLOR, ROLE_DESC } from '@/lib/rbac';
+import { roleKodes, roleLabel, roleColor, roleDesc } from '@/lib/rbac';
 import { ConfirmButton } from '@/components/Confirm';
 import { tglJam } from '@/lib/util';
 import { Badge, Card, Flash, PageHeader, TableWrap, Field, Empty } from '@/components/ui';
@@ -12,7 +12,8 @@ export const dynamic = 'force-dynamic';
 
 export default function Page({ searchParams }: { searchParams: any }) {
   const me = requireUser('users');
-  const fRole = (ROLES as readonly string[]).includes(searchParams?.role) ? searchParams.role : '';
+  const ROLES = roleKodes();
+  const fRole = ROLES.includes(searchParams?.role) ? searchParams.role : '';
   const fCab0 = String(searchParams?.cabang || '');
   const fStatus = ['aktif', 'nonaktif'].includes(searchParams?.status) ? searchParams.status : '';
   const q = String(searchParams?.q || '').trim();
@@ -23,7 +24,7 @@ export default function Page({ searchParams }: { searchParams: any }) {
   const branches = listBranches();
   const bName = (id: number | null) => id == null ? null : (branches.find(b => b.id === id)?.nama || '?');
   const fCab = fCab0;
-  const roleOpts = ROLES.map(r => <option key={r} value={r}>{ROLE_LABEL[r]}</option>);
+  const roleOpts = ROLES.map(r => <option key={r} value={r}>{roleLabel(r)}</option>);
   return (<div>
     <PageHeader title="Pengguna & Role" desc="Kelola akun login dan batasi akses tiap akun lewat peran (role). Hanya pemilik yang dapat membuka menu ini.">
       <a className="btn btn-primary" href="#tambah">+ Tambah pengguna</a>
@@ -31,9 +32,9 @@ export default function Page({ searchParams }: { searchParams: any }) {
     <Flash sp={searchParams} />
     <UserTabs active="users" />
     <div className="grid gap-3 grid-cols-2 md:grid-cols-5 mb-5">
-      {ROLES.map(r => <Link key={r} href={fRole === r ? '/users' : `/users?role=${r}`} title={ROLE_DESC[r]}
+      {ROLES.map(r => <Link key={r} href={fRole === r ? '/users' : `/users?role=${r}`} title={roleDesc(r)}
         className={`card p-3 hover:shadow-md transition ${fRole === r ? 'ring-2 ring-brand-500' : ''}`}>
-        <Badge color={ROLE_COLOR[r]}>{ROLE_LABEL[r]}</Badge>
+        <Badge color={roleColor(r)}>{roleLabel(r)}</Badge>
         <div className="text-2xl font-bold text-brand-900 mt-1 tabular-nums">{count(r)}</div>
         <div className="text-xs text-slate-500">akun aktif</div>
       </Link>)}
@@ -51,7 +52,7 @@ export default function Page({ searchParams }: { searchParams: any }) {
           {users.map((x: any) => <tr key={x.id} className={x.aktif ? '' : 'opacity-60'}>
             <td className="font-mono text-xs">{x.username}{x.id === me.id && <span className="ml-1 text-brand-600 font-sans">(Anda)</span>}</td>
             <td>{x.nama}</td>
-            <td><Badge color={ROLE_COLOR[x.role]}>{ROLE_LABEL[x.role] || x.role}</Badge></td>
+            <td><Badge color={roleColor(x.role)}>{roleLabel(x.role)}</Badge></td>
             <td className="text-sm">{x.branch_id == null ? <Badge color="violet">Semua cabang</Badge> : <>🏢 {bName(x.branch_id)}</>}</td>
             <td className="text-sm">{x.telepon || '-'}</td>
             <td>{x.aktif ? <Badge color="green">Aktif</Badge> : <Badge color="red">Nonaktif</Badge>}</td>

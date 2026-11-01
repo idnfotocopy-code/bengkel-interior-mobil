@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
-import { JOB_TYPES, CHECKLIST_DEFAULTS, ChecklistTipe } from './constants';
+import { JOB_TYPES, CHECKLIST_DEFAULTS, ChecklistTipe, SIGNATORY_KODES, SIGNATORY_TITLE, SignatoryKode } from './constants';
 import { nowStr } from './util';
 
 export const ROOT = process.cwd();
@@ -32,6 +32,10 @@ CREATE TABLE IF NOT EXISTS payments(id INTEGER PRIMARY KEY, nomor TEXT UNIQUE NO
 CREATE TABLE IF NOT EXISTS expenses(id INTEGER PRIMARY KEY, tanggal TEXT NOT NULL, kategori TEXT NOT NULL, deskripsi TEXT, jumlah REAL NOT NULL, wo_id INTEGER, cash_account_id INTEGER, user_id INTEGER, created_at TEXT);
 CREATE TABLE IF NOT EXISTS job_types(id INTEGER PRIMARY KEY, nama TEXT UNIQUE NOT NULL, deskripsi TEXT, aktif INTEGER NOT NULL DEFAULT 1, urutan INTEGER NOT NULL DEFAULT 0, created_at TEXT);
 CREATE TABLE IF NOT EXISTS checklist_items(id INTEGER PRIMARY KEY, tipe TEXT NOT NULL DEFAULT 'serah_terima', nama TEXT NOT NULL, deskripsi TEXT, urutan INTEGER NOT NULL DEFAULT 0, aktif INTEGER NOT NULL DEFAULT 1, created_at TEXT, UNIQUE(tipe, nama));
+CREATE TABLE IF NOT EXISTS signatories(id INTEGER PRIMARY KEY, kode TEXT UNIQUE NOT NULL, nama TEXT NOT NULL, jabatan TEXT, gambar TEXT, aktif INTEGER NOT NULL DEFAULT 1, updated_at TEXT);
+CREATE TABLE IF NOT EXISTS roles(kode TEXT PRIMARY KEY, label TEXT NOT NULL, deskripsi TEXT, warna TEXT, builtin INTEGER NOT NULL DEFAULT 0, urutan INTEGER NOT NULL DEFAULT 0, created_at TEXT);
+CREATE TABLE IF NOT EXISTS role_perms(role TEXT NOT NULL, perm TEXT NOT NULL, PRIMARY KEY(role, perm));
+CREATE TABLE IF NOT EXISTS role_menus(role TEXT NOT NULL, menu TEXT NOT NULL, PRIMARY KEY(role, menu));
 CREATE TABLE IF NOT EXISTS audit_logs(id INTEGER PRIMARY KEY, user_id INTEGER, username TEXT, aksi TEXT, entitas TEXT, entitas_id TEXT, detail TEXT, at TEXT);
 CREATE INDEX IF NOT EXISTS ix_wo_status ON work_orders(status);
 CREATE INDEX IF NOT EXISTS ix_mov_mat ON stock_movements(material_id, tanggal);
@@ -58,6 +62,7 @@ export function db(): Database.Database {
     }
     seedJobTypes(d);
     seedChecklist(d);
+    seedSignatories(d);
   }
   return g.__bimdb;
 }
@@ -139,6 +144,31 @@ export function seedChecklist(d: Database.Database = db()) {
   })();
 }
 
+/**
+ * Isi master penanda tangan (pemilik/admin/keuangan/gudang) bila belum ada barisnya.
+ * Nama awal diambil dari pengguna aktif pertama dengan peran tersebut, bila tidak ada pakai label peran.
+ * Aman dijalankan berulang: baris yang sudah ada tidak disentuh.
+ */
+export function seedSignatories(d: Database.Database = db()) {
+  const now = nowStr();
+  d.transaction(() => {
+    for (const kode of SIGNATORY_KODES) {
+      if (d.prepare('SELECT 1 FROM signatories WHERE kode=?').get(kode)) continue;
+      const u = d.prepare('SELECT nama FROM users WHERE role=? AND aktif=1 ORDER BY id LIMIT 1').get(kode) as any;
+      d.prepare('INSERT INTO signatories(kode,nama,jabatan,gambar,aktif,updated_at) VALUES(?,?,?,NULL,1,?)').run(kode, (u?.nama || SIGNATORY_TITLE[kode]).trim(), SIGNATORY_TITLE[kode], now);
+    }
+  })();
+}
+
+export type Signatory = { kode: SignatoryKode; nama: string; jabatan: string; gambar: string | null };
+/** Penanda tangan aktif untuk PDF (null bila nonaktif / tidak ada). */
+export function signatory(kode: string): Signatory | null {
+  if (!(SIGNATORY_KODES as readonly string[]).includes(kode)) return null;
+  const r = one<any>('SELECT * FROM signatories WHERE kode=? AND aktif=1', kode);
+  if (!r) return null;
+  return { kode: r.kode, nama: (r.nama || '').trim(), jabatan: (r.jabatan || '').trim() || SIGNATORY_TITLE[r.kode as SignatoryKode], gambar: r.gambar || null };
+}
+
 /** Daftar checklist aktif untuk PDF; bila kosong, pakai daftar bawaan agar dokumen tidak pernah tanpa checklist. */
 export function checklistFor(tipe: ChecklistTipe): string[] {
   const rows = all<{ nama: string }>('SELECT nama FROM checklist_items WHERE tipe=? AND aktif=1 ORDER BY urutan, nama', tipe).map(r => r.nama);
@@ -158,6 +188,7 @@ export function update(table: string, id: number, obj: Record<string, any>) {
   if (!keys.length) return;
   db().prepare(`UPDATE ${table} SET ${keys.map(k => k + '=?').join(',')} WHERE id=?`).run(...keys.map(k => obj[k] ?? null), id);
 }
+export const nowStrSafe = () => nowStr();
 export const tx = <T>(fn: () => T): T => db().transaction(fn)();
 
 export const DEFAULT_SETTINGS: Record<string, string> = {

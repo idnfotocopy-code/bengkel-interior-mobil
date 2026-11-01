@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { requireUser } from '@/lib/auth';
 import { one, all } from '@/lib/db';
-import { ROLES, ROLE_LABEL, ROLE_COLOR, ROLE_DESC, MENUS, PERM_GROUPS, PERM_LABEL, can } from '@/lib/rbac';
+import { roleKodes, roleLabel, roleColor, roleDesc, MENUS, PERM_GROUPS, PERM_LABEL, can, canMenu } from '@/lib/rbac';
 import { ConfirmButton } from '@/components/Confirm';
 import { tglJam } from '@/lib/util';
 import { Badge, Card, Flash, PageHeader, Field, TableWrap } from '@/components/ui';
@@ -30,8 +30,8 @@ export default function Page({ params, searchParams }: { params: { id: string };
           <Field label="Nama lengkap"><input name="nama" defaultValue={x.nama} required className="input" /></Field>
           <Field label="Telepon"><input name="telepon" defaultValue={x.telepon || ''} className="input" /></Field>
           <Field label="Role (hak akses)">
-            {self ? <><input type="hidden" name="role" value={x.role} /><input value={ROLE_LABEL[x.role]} disabled className="input bg-stone-100" /><p className="text-xs text-slate-500 mt-1">Anda tidak dapat mengubah role akun sendiri.</p></>
-              : <select name="role" defaultValue={x.role} className="input">{ROLES.map(r => <option key={r} value={r}>{ROLE_LABEL[r]} — {ROLE_DESC[r].split(':')[0].split('.')[0]}</option>)}</select>}
+            {self ? <><input type="hidden" name="role" value={x.role} /><input value={roleLabel(x.role)} disabled className="input bg-stone-100" /><p className="text-xs text-slate-500 mt-1">Anda tidak dapat mengubah role akun sendiri.</p></>
+              : <select name="role" defaultValue={x.role} className="input">{roleKodes().map(r => <option key={r} value={r}>{roleLabel(r)}{roleDesc(r) ? ' — ' + roleDesc(r).split(':')[0].split('.')[0] : ''}</option>)}</select>}
           </Field>
           <Field label="Cabang">
             <select name="branch_id" defaultValue={x.branch_id ?? ''} className="input">
@@ -61,11 +61,11 @@ export default function Page({ params, searchParams }: { params: { id: string };
         </Card>}
       </div>
       <div className="lg:col-span-3 space-y-5">
-        <Card title={<>Akses saat ini: <Badge color={ROLE_COLOR[x.role]}>{ROLE_LABEL[x.role]}</Badge> {x.aktif ? <Badge color="green">Aktif</Badge> : <Badge color="red">Nonaktif</Badge>}</>}
+        <Card title={<>Akses saat ini: <Badge color={roleColor(x.role)}>{roleLabel(x.role)}</Badge> {x.aktif ? <Badge color="green">Aktif</Badge> : <Badge color="red">Nonaktif</Badge>}</>}
           actions={<Link href={`/users/roles?role=${x.role}`} className="btn btn-sm">Lihat matriks</Link>}>
-          <p className="text-sm text-slate-600 mb-3">{ROLE_DESC[x.role as keyof typeof ROLE_DESC]}</p>
+          <p className="text-sm text-slate-600 mb-3">{roleDesc(x.role)}</p>
           <div className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-1">Menu yang terlihat</div>
-          <div className="flex flex-wrap gap-1.5 mb-4">{MENUS.map(m => m.roles.includes(x.role) ? <Badge key={m.key} color="teal">{m.icon} {m.label}</Badge> : <span key={m.key} className="badge bg-stone-100 text-stone-400 line-through">{m.label}</span>)}</div>
+          <div className="flex flex-wrap gap-1.5 mb-4">{MENUS.map(m => canMenu(x.role, m.key) ? <Badge key={m.key} color="teal">{m.icon} {m.label}</Badge> : <span key={m.key} className="badge bg-stone-100 text-stone-400 line-through">{m.label}</span>)}</div>
           <div className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-1">Aksi yang diizinkan</div>
           <div className="grid gap-x-4 sm:grid-cols-2">{PERM_GROUPS.map(g => <div key={g.label} className="py-1">
             <div className="text-sm font-semibold text-brand-900">{g.icon} {g.label}</div>

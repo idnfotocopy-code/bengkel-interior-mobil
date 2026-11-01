@@ -60,7 +60,11 @@ Alternatif bila belum ada data asli sama sekali: hentikan server, `npm run reset
 | Keuangan | ✓ | ✓ (tanpa kas) | ✓ | – | – |
 | Laporan | ✓ | ✓ (tanpa laba rugi) | ✓ | stok | – |
 | Pengguna & Role | ✓ | – | – | – | – |
+| Hak akses (editor matriks) | ✓ | – | – | – | – |
+| Tanda tangan | ✓ | ✓ | – | – | – |
 | Pengaturan | ✓ | ✓ | – | – | – |
+
+> Tabel di atas adalah **bawaan**. Pemilik dapat mengubah centang menu & aksi tiap peran di menu **Hak akses** (`/users/roles`); nilai efektif disimpan di database (`roles`, `role_perms`, `role_menus`, diisi sekali dari bawaan `lib/rbac.ts`). Pemilik selalu akses penuh; menu Pengguna, Hak akses dan izin kelola pengguna dikunci khusus pemilik; Dashboard selalu aktif untuk semua peran.
 
 ### Matriks aksi Tambah / Edit / Hapus
 
@@ -113,6 +117,8 @@ Aplikasi mendukung beberapa cabang dalam satu database. Cabang awal: **Bekasi (B
   - Penugasan teknisi dan riwayat status.
 - **Jenis pekerjaan** (`/jenis-pekerjaan`, pemilik & admin): master data jenis pekerjaan yang tampil sebagai pilihan di form pesanan baru/edit. Tambah, edit (nama, deskripsi, urutan tampil; ganti nama bisa ikut diterapkan ke pesanan lama), nonaktifkan/aktifkan, hapus. Jenis yang sudah dipakai pesanan hanya dinonaktifkan. Tabel `job_types` dibuat otomatis saat aplikasi start dan diisi daftar bawaan bila masih kosong.
 - **Pemeriksaan bersama** (`/checklist`, pemilik & admin): master checklist yang dicetak di PDF. Tab *Pemeriksaan bersama* = tabel di **Surat Serah Terima** (kolom Sesuai / Tidak, dicentang tangan); tab *Pemeriksaan kualitas* = checklist di **Work Order** (kolom OK / Catatan). Tambah, edit (nama, urutan, keterangan), nonaktifkan/aktifkan, hapus. Hanya item aktif yang dicetak, urut menurut kolom urutan; bila tidak ada item aktif, PDF memakai daftar bawaan. Tabel `checklist_items` (berlaku untuk semua cabang) dibuat otomatis saat aplikasi start dan diisi daftar bawaan sekali saja (database lama ikut terisi tanpa menghapus data).
+- **Tanda tangan digital** (`/tanda-tangan`, pemilik & admin): nama & gambar tanda tangan (PNG/JPG, latar transparan disarankan) untuk Pemilik, Admin, Bagian Keuangan, Bagian Gudang. Nama dan gambar tercetak otomatis di blok tanda tangan PDF (penawaran, WO, serah terima, invoice, kuitansi, laporan stok/transaksi/piutang/laba rugi; pemilik di kolom *Mengetahui/Disetujui*). Tanda tangan pelanggan & teknisi tidak pernah diisi otomatis. Tabel `signatories` dibuat & diisi otomatis (4 baris) saat start.
+- **Hak akses** (`/users/roles`, khusus pemilik): matriks centang menu × peran dan aksi × peran, Simpan berlaku seketika; reset per peran / semua ke bawaan; ganti label tampilan, keterangan & warna peran (kode tetap); tambah/hapus peran custom (salin izin dari peran lain). Semua perubahan tercatat di log aktivitas.
 - **Produksi**: papan kerja untuk teknisi, progres % dengan foto, pemakaian bahan yang langsung mengurangi stok, dan tombol status.
 - **Persediaan**:
   - Master bahan dan supplier.

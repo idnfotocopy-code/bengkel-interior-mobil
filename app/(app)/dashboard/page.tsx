@@ -4,7 +4,7 @@ import { all, one } from '@/lib/db';
 import { periodFinance, receivables, woSummary } from '@/lib/biz';
 import { rp, num, tgl, monthRange, today } from '@/lib/util';
 import { Stat, Card, Flash, PageHeader, StatusBadge, Empty, TableWrap, Badge } from '@/components/ui';
-import { ROLE_LABEL } from '@/lib/rbac';
+import { roleLabel } from '@/lib/rbac';
 import { WO_STATUSES } from '@/lib/constants';
 import { activeBranch } from '@/lib/branch';
 export const dynamic = 'force-dynamic';
@@ -29,7 +29,7 @@ export default function Dashboard({ searchParams }: { searchParams: any }) {
   const periodLabel = `${tgl(from)} – ${tgl(to)}`;
 
   return (<div>
-    <PageHeader title={`Dashboard ${ROLE_LABEL[u.role]}`} desc={`Halo, ${u.nama}. Cabang ${cabang.nama}. Semua angka dihitung langsung dari transaksi di sistem · periode ${periodLabel}.`} />
+    <PageHeader title={`Dashboard ${roleLabel(u.role)}`} desc={`Halo, ${u.nama}. Cabang ${cabang.nama}. Semua angka dihitung langsung dari transaksi di sistem · periode ${periodLabel}.`} />
     <Flash sp={searchParams} />
 
     {u.role === 'pemilik' && (<div className="grid gap-3 grid-cols-2 lg:grid-cols-5 mb-5">

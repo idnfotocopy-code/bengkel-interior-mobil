@@ -22,3 +22,9 @@ export const CHECKLIST_DEFAULTS: Record<ChecklistTipe, readonly string[]> = {
   serah_terima: ['Hasil pekerjaan sesuai pesanan', 'Kebersihan kabin', 'Barang pribadi pelanggan lengkap', 'Kunci & STNK diterima kembali'],
   kualitas: ['Jahitan rapi & kuat', 'Warna/material sesuai pesanan', 'Pemasangan presisi, tidak bergelombang', 'Fungsi jok/sabuk/kelistrikan normal', 'Kabin bersih dari sisa bahan'],
 };
+
+/** Master penanda tangan PDF (menu Tanda tangan). Kode tetap, satu baris per peran. */
+export const SIGNATORY_KODES = ['pemilik', 'admin', 'keuangan', 'gudang'] as const;
+export type SignatoryKode = typeof SIGNATORY_KODES[number];
+/** Judul blok tanda tangan bawaan per kode (dipakai juga untuk mencocokkan blok PDF). */
+export const SIGNATORY_TITLE: Record<SignatoryKode, string> = { pemilik: 'Pemilik', admin: 'Admin', keuangan: 'Bagian Keuangan', gudang: 'Bagian Gudang' };

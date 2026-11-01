@@ -1,6 +1,8 @@
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
-import { settings, one } from './db';
+import path from 'path';
+import { settings, one, all, signatory } from './db';
+import { SIGNATORY_TITLE } from './constants';
 import { uploadPath } from './upload';
 import { tgl, tglJam, nowStr } from './util';
 
@@ -147,7 +149,14 @@ export function box(doc: Doc, title: string, text: string) {
   doc.y = y + h + 8; doc.x = M; doc.strokeColor('#000');
 }
 
-export type SignBlock = { label?: string; title: string; name?: string };
+export type SignBlock = { label?: string; title: string; name?: string; image?: string | null };
+/** Gambar tanda tangan yang bisa dicetak (PNG/JPG). `img` = nama file upload atau path absolut. */
+function signImagePath(img?: string | null): string {
+  if (!img) return '';
+  const p = path.isAbsolute(img) ? img : uploadPath(img);
+  if (!p || !/\.(png|jpe?g)$/i.test(p)) return '';
+  try { fs.accessSync(p, fs.constants.R_OK); return p; } catch { return ''; }
+}
 export function signatures(doc: Doc, blocks: SignBlock[], place?: string) {
   if (doc.y > doc.page.height - 170) doc.addPage();
   const W = cw(doc); const w = W / blocks.length; let y0 = doc.y + 8;
@@ -158,9 +167,37 @@ export function signatures(doc: Doc, blocks: SignBlock[], place?: string) {
     doc.font('Helvetica').fontSize(9.5).fillColor('#000');
     doc.text(b.label || ' ', x, y0, { width: w, align: 'center' });
     doc.text(b.title, x, doc.y, { width: w, align: 'center' });
-    doc.font('Helvetica-Bold').text(b.name || '(.................................)', x, y0 + 80, { width: w, align: 'center', underline: !!b.name });
+    const top = doc.y + 2; const bottom = y0 + 78;
+    const img = signImagePath(b.image);
+    if (img && bottom - top > 20) {
+      const iw = Math.min(110, w - 10), ih = Math.min(50, bottom - top);
+      try { doc.image(img, x + (w - iw) / 2, bottom - ih, { fit: [iw, ih], align: 'center', valign: 'bottom' }); } catch { /* gambar rusak: biarkan ruang kosong untuk tanda tangan basah */ }
+    }
+    doc.font('Helvetica-Bold').fontSize(9.5).fillColor('#000').text(b.name || '(.................................)', x, y0 + 80, { width: w, align: 'center', underline: !!b.name });
   });
   doc.font('Helvetica'); doc.x = M; doc.y = y0 + 105;
+}
+
+const eqName = (a?: string | null, b?: string | null) => !!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase();
+/** Blok tanda tangan dari master Tanda tangan (nama + gambar). Bila penanda tangan nonaktif/kosong, pakai `fallbackName`. */
+export function signBlock(kode: string, label: string, opts: { title?: string; fallbackName?: string } = {}): SignBlock {
+  const s = signatory(kode);
+  const title = opts.title || s?.jabatan || (SIGNATORY_TITLE as any)[kode] || kode;
+  if (!s) return { label, title, name: opts.fallbackName || '' };
+  // nama masih label bawaan (belum diisi di menu Tanda tangan) → pakai nama pencetak bila ada
+  const unset = !s.nama || eqName(s.nama, (SIGNATORY_TITLE as any)[kode]);
+  return { label, title, name: unset && opts.fallbackName ? opts.fallbackName : s.nama, image: s.gambar };
+}
+/**
+ * Blok untuk orang tertentu (mis. penanggung jawab / penerima pembayaran): nama orang tetap dipakai,
+ * gambar tanda tangan dilampirkan bila ada penanda tangan aktif dengan nama yang sama, atau dari peran orang tersebut.
+ */
+export function personBlock(label: string, title: string, name: string, role?: string | null): SignBlock {
+  const rows = all<any>('SELECT kode, nama, gambar FROM signatories WHERE aktif=1');
+  const byName = rows.find(r => eqName(r.nama, name));
+  if (byName) return { label, title, name, image: byName.gambar };
+  const byRole = role ? rows.find(r => r.kode === role) : null;
+  return { label, title, name, image: byRole?.gambar || null };
 }
 
 export function finalize(doc: Doc, info: { by: string; docNo?: string }): Promise<Buffer> {

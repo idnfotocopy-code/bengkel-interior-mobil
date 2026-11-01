@@ -1,8 +1,13 @@
+import { db } from './db';
+import { nowStr } from './util';
+
+/** 5 peran dasar (kode tetap). Peran tambahan (custom) disimpan di tabel `roles`. */
 export const ROLES = ['pemilik', 'admin', 'keuangan', 'gudang', 'teknisi'] as const;
 export type Role = typeof ROLES[number];
-export const ROLE_LABEL: Record<string, string> = { pemilik: 'Pemilik', admin: 'Admin', keuangan: 'Keuangan', gudang: 'Gudang', teknisi: 'Teknisi' };
+/** Label bawaan; label efektif (bisa diganti di menu Hak akses) lewat roleLabel(). */
+export const DEFAULT_ROLE_LABEL: Record<string, string> = { pemilik: 'Pemilik', admin: 'Admin', keuangan: 'Keuangan', gudang: 'Gudang', teknisi: 'Teknisi' };
 
-export type MenuKey = 'dashboard' | 'pelanggan' | 'kendaraan' | 'pesanan' | 'jenis-pekerjaan' | 'checklist' | 'produksi' | 'persediaan' | 'keuangan' | 'laporan' | 'users' | 'cabang' | 'pengaturan';
+export type MenuKey = 'dashboard' | 'pelanggan' | 'kendaraan' | 'pesanan' | 'jenis-pekerjaan' | 'checklist' | 'tanda-tangan' | 'produksi' | 'persediaan' | 'keuangan' | 'laporan' | 'users' | 'hak-akses' | 'cabang' | 'pengaturan';
 export const MENUS: { key: MenuKey; href: string; label: string; icon: string; group: string; roles: Role[] }[] = [
   { key: 'dashboard', href: '/dashboard', label: 'Dashboard', icon: '📊', group: 'Utama', roles: ['pemilik', 'admin', 'keuangan', 'gudang', 'teknisi'] },
   { key: 'pelanggan', href: '/pelanggan', label: 'Pelanggan', icon: '👤', group: 'Operasional', roles: ['pemilik', 'admin'] },
@@ -15,13 +20,15 @@ export const MENUS: { key: MenuKey; href: string; label: string; icon: string; g
   { key: 'keuangan', href: '/keuangan', label: 'Keuangan', icon: '💰', group: 'Gudang & Keuangan', roles: ['pemilik', 'admin', 'keuangan'] },
   { key: 'laporan', href: '/laporan', label: 'Laporan', icon: '📑', group: 'Gudang & Keuangan', roles: ['pemilik', 'admin', 'keuangan', 'gudang'] },
   { key: 'users', href: '/users', label: 'Pengguna & Role', icon: '🔐', group: 'Sistem', roles: ['pemilik'] },
+  { key: 'hak-akses', href: '/users/roles', label: 'Hak akses', icon: '🛡️', group: 'Sistem', roles: ['pemilik'] },
   { key: 'cabang', href: '/cabang', label: 'Cabang', icon: '🏢', group: 'Sistem', roles: ['pemilik'] },
+  { key: 'tanda-tangan', href: '/tanda-tangan', label: 'Tanda tangan', icon: '✍️', group: 'Sistem', roles: ['pemilik', 'admin'] },
   { key: 'pengaturan', href: '/pengaturan', label: 'Pengaturan', icon: '⚙️', group: 'Sistem', roles: ['pemilik', 'admin'] },
 ];
-export const canMenu = (role: string, key: MenuKey) => !!MENUS.find(m => m.key === key)?.roles.includes(role as Role);
-export const menusFor = (role: string) => MENUS.filter(m => m.roles.includes(role as Role));
+/** Menu bawaan (default) per peran — sumber seed awal matriks yang bisa diedit. */
+export const defaultMenu = (role: string, key: MenuKey) => !!MENUS.find(m => m.key === key)?.roles.includes(role as Role);
 
-/** Izin aksi — mengikuti matriks hak akses pada rancangan (bab 7). */
+/** Izin aksi bawaan — mengikuti matriks hak akses pada rancangan (bab 7). Nilai efektif dibaca dari DB (menu Hak akses). */
 const PERMS = {
   'pelanggan.kelola': ['pemilik', 'admin'],        // tambah / edit / hapus pelanggan
   'kendaraan.kelola': ['pemilik', 'admin'],        // tambah / edit / hapus kendaraan
@@ -55,13 +62,80 @@ const PERMS = {
   'users.kelola': ['pemilik'],
   'cabang.kelola': ['pemilik'],                    // master cabang: tambah / edit / nonaktifkan / hapus
   'pengaturan.kelola': ['pemilik', 'admin'],
+  'tanda-tangan.kelola': ['pemilik', 'admin'],     // nama & gambar tanda tangan digital pada PDF
   'data.backup': ['pemilik'],                      // unduh backup database
   'data.restore': ['pemilik'],                     // pulihkan database dari file backup
   'data.hapus_transaksi': ['pemilik'],             // hapus seluruh data transaksi
 } as const;
 export type Perm = keyof typeof PERMS;
-export const can = (role: string | undefined, p: Perm) => !!role && (PERMS[p] as readonly string[]).includes(role);
 export const PERM_LIST = PERMS;
+export const ALL_PERMS = Object.keys(PERMS) as Perm[];
+export const defaultCan = (role: string, p: Perm) => (PERMS[p] as readonly string[]).includes(role);
+
+/** Dikunci khusus pemilik (tidak bisa diberikan ke peran lain) supaya pemilik tidak bisa dikunci keluar. */
+export const LOCKED_PERMS: Perm[] = ['users.kelola'];
+export const LOCKED_MENUS: MenuKey[] = ['users', 'hak-akses'];
+/** Selalu aktif untuk semua peran supaya akun tidak pernah tanpa menu setelah login. */
+export const ALWAYS_MENUS: MenuKey[] = ['dashboard'];
+
+// ---------------- Matriks efektif dari database ----------------
+export type RoleRow = { kode: string; label: string; deskripsi: string; warna: string; builtin: number; urutan: number };
+type Cache = { d: any; roles: RoleRow[]; perms: Map<string, Set<string>>; menus: Map<string, Set<string>> };
+const g = globalThis as any;
+
+/**
+ * Seed sekali dari matriks bawaan; aman dijalankan berulang.
+ * Izin/menu yang baru ditambahkan di versi aplikasi berikutnya otomatis diberikan sesuai bawaannya
+ * (dicatat di settings `rbac_known_*`), sedangkan centang yang sudah diubah pemilik tidak disentuh.
+ */
+export function ensureRbac() {
+  const d = db();
+  const now = nowStr();
+  d.transaction(() => {
+    ROLES.forEach((r, i) => d.prepare('INSERT OR IGNORE INTO roles(kode,label,deskripsi,warna,builtin,urutan,created_at) VALUES(?,?,?,?,1,?,?)').run(r, DEFAULT_ROLE_LABEL[r], ROLE_DESC[r], ROLE_COLOR[r], (i + 1) * 10, now));
+    const getKnown = (k: string): Set<string> => { const r = d.prepare('SELECT value FROM settings WHERE key=?').get(k) as any; try { return new Set(r ? JSON.parse(r.value) : []); } catch { return new Set(); } };
+    const setKnown = (k: string, v: string[]) => d.prepare('INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run(k, JSON.stringify(v));
+    const kp = getKnown('rbac_known_perms'), km = getKnown('rbac_known_menus');
+    const roles = (d.prepare('SELECT kode FROM roles').all() as any[]).map(r => r.kode as string);
+    for (const p of ALL_PERMS) if (!kp.has(p)) for (const r of roles) if (r !== 'pemilik' && defaultCan(r, p) && !LOCKED_PERMS.includes(p)) d.prepare('INSERT OR IGNORE INTO role_perms(role,perm) VALUES(?,?)').run(r, p);
+    for (const m of MENUS) if (!km.has(m.key)) for (const r of roles) if (r !== 'pemilik' && (defaultMenu(r, m.key) || ALWAYS_MENUS.includes(m.key)) && !LOCKED_MENUS.includes(m.key)) d.prepare('INSERT OR IGNORE INTO role_menus(role,menu) VALUES(?,?)').run(r, m.key);
+    if (ALL_PERMS.some(p => !kp.has(p))) setKnown('rbac_known_perms', ALL_PERMS);
+    if (MENUS.some(m => !km.has(m.key))) setKnown('rbac_known_menus', MENUS.map(m => m.key));
+  })();
+}
+function load(): Cache {
+  const d = db();
+  if (g.__rbac && g.__rbac.d === d) return g.__rbac;
+  ensureRbac();
+  const roles = d.prepare('SELECT kode,label,COALESCE(deskripsi,\'\') deskripsi,COALESCE(warna,\'slate\') warna,builtin,urutan FROM roles ORDER BY urutan, kode').all() as RoleRow[];
+  const perms = new Map<string, Set<string>>(), menus = new Map<string, Set<string>>();
+  for (const r of d.prepare('SELECT role, perm FROM role_perms').all() as any[]) { if (!perms.has(r.role)) perms.set(r.role, new Set()); perms.get(r.role)!.add(r.perm); }
+  for (const r of d.prepare('SELECT role, menu FROM role_menus').all() as any[]) { if (!menus.has(r.role)) menus.set(r.role, new Set()); menus.get(r.role)!.add(r.menu); }
+  return (g.__rbac = { d, roles, perms, menus });
+}
+/** Panggil setelah matriks / peran diubah (atau DB dipulihkan). */
+export const clearRbacCache = () => { g.__rbac = null; };
+
+export function can(role: string | undefined, p: Perm): boolean {
+  if (!role) return false;
+  if (role === 'pemilik') return true;
+  if (LOCKED_PERMS.includes(p)) return false;
+  return !!load().perms.get(role)?.has(p);
+}
+export function canMenu(role: string, key: MenuKey): boolean {
+  if (!role) return false;
+  if (role === 'pemilik') return true;
+  if (LOCKED_MENUS.includes(key)) return false;
+  if (ALWAYS_MENUS.includes(key)) return !!roleRow(role);
+  return !!load().menus.get(role)?.has(key);
+}
+export const menusFor = (role: string) => MENUS.filter(m => canMenu(role, m.key));
+export const roleList = (): RoleRow[] => load().roles;
+export const roleRow = (kode: string) => load().roles.find(r => r.kode === kode);
+export const roleKodes = () => load().roles.map(r => r.kode);
+export const roleLabel = (kode: string) => roleRow(kode)?.label || DEFAULT_ROLE_LABEL[kode] || kode;
+export const roleDesc = (kode: string) => roleRow(kode)?.deskripsi || (ROLE_DESC as any)[kode] || '';
+export const roleColor = (kode: string) => roleRow(kode)?.warna || ROLE_COLOR[kode] || 'slate';
 
 /** Label ramah-pengguna untuk matriks hak akses aksi (halaman Pengguna & README). */
 export const PERM_LABEL: Record<Perm, string> = {
@@ -97,6 +171,7 @@ export const PERM_LABEL: Record<Perm, string> = {
   'users.kelola': 'Pengguna: tambah / edit / nonaktifkan / hapus',
   'cabang.kelola': 'Cabang: tambah / edit / nonaktifkan / hapus, akses semua cabang',
   'pengaturan.kelola': 'Pengaturan: edit profil bengkel',
+  'tanda-tangan.kelola': 'Tanda tangan digital: nama pemilik/pejabat & gambar tanda tangan di PDF',
   'data.backup': 'Data: unduh backup database',
   'data.restore': 'Data: restore (pulihkan) database dari file backup',
   'data.hapus_transaksi': 'Data: hapus seluruh data transaksi',
@@ -120,6 +195,6 @@ export const PERM_GROUPS: { label: string; icon: string; perms: Perm[] }[] = [
   { label: 'Persediaan', icon: '📦', perms: ['stok.master', 'stok.masuk', 'stok.penyesuaian', 'stok.lihat_biaya'] },
   { label: 'Keuangan', icon: '💰', perms: ['bayar.catat', 'bayar.hapus', 'invoice.kelola', 'biaya.kelola', 'kas.kelola', 'dokumen.keuangan'] },
   { label: 'Laporan', icon: '📑', perms: ['laporan.stok', 'laporan.transaksi', 'laporan.labarugi', 'laporan.piutang'] },
-  { label: 'Sistem', icon: '⚙️', perms: ['users.kelola', 'cabang.kelola', 'pengaturan.kelola', 'data.backup', 'data.restore', 'data.hapus_transaksi'] },
+  { label: 'Sistem', icon: '⚙️', perms: ['users.kelola', 'cabang.kelola', 'pengaturan.kelola', 'tanda-tangan.kelola', 'data.backup', 'data.restore', 'data.hapus_transaksi'] },
 ];
-export const permsFor = (role: string) => (Object.keys(PERMS) as Perm[]).filter(p => can(role, p));
+export const permsFor = (role: string) => ALL_PERMS.filter(p => can(role, p));

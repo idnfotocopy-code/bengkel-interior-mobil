@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import bcrypt from 'bcryptjs';
 import { requirePerm, audit } from '@/lib/auth';
 import { insert, update, one, run } from '@/lib/db';
-import { ROLES } from '@/lib/rbac';
+import { roleKodes } from '@/lib/rbac';
 import { s, nowStr, withMsg } from '@/lib/util';
 
 const safeBack = (b: string) => (/^\/users(\/[a-z0-9]+)?$/.test(b) ? b : '/users');
@@ -14,7 +14,7 @@ export async function saveUser(fd: FormData) {
   const id = Number(fd.get('id') || 0);
   const back = safeBack(s(fd, 'back'));
   const role = s(fd, 'role');
-  if (!(ROLES as readonly string[]).includes(role)) redirect(withMsg(back, 'err', 'Peran tidak valid.'));
+  if (!roleKodes().includes(role)) redirect(withMsg(back, 'err', 'Peran tidak valid.'));
   const aktif = fd.get('aktif') ? 1 : 0;
   // Cabang: wajib untuk selain pemilik; pemilik boleh kosong (= semua cabang, bisa berpindah cabang)
   const branch_id = Number(fd.get('branch_id') || 0) || null;
