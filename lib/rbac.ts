@@ -2,13 +2,14 @@ export const ROLES = ['pemilik', 'admin', 'keuangan', 'gudang', 'teknisi'] as co
 export type Role = typeof ROLES[number];
 export const ROLE_LABEL: Record<string, string> = { pemilik: 'Pemilik', admin: 'Admin', keuangan: 'Keuangan', gudang: 'Gudang', teknisi: 'Teknisi' };
 
-export type MenuKey = 'dashboard' | 'pelanggan' | 'kendaraan' | 'pesanan' | 'jenis-pekerjaan' | 'produksi' | 'persediaan' | 'keuangan' | 'laporan' | 'users' | 'cabang' | 'pengaturan';
+export type MenuKey = 'dashboard' | 'pelanggan' | 'kendaraan' | 'pesanan' | 'jenis-pekerjaan' | 'checklist' | 'produksi' | 'persediaan' | 'keuangan' | 'laporan' | 'users' | 'cabang' | 'pengaturan';
 export const MENUS: { key: MenuKey; href: string; label: string; icon: string; group: string; roles: Role[] }[] = [
   { key: 'dashboard', href: '/dashboard', label: 'Dashboard', icon: '📊', group: 'Utama', roles: ['pemilik', 'admin', 'keuangan', 'gudang', 'teknisi'] },
   { key: 'pelanggan', href: '/pelanggan', label: 'Pelanggan', icon: '👤', group: 'Operasional', roles: ['pemilik', 'admin'] },
   { key: 'kendaraan', href: '/kendaraan', label: 'Kendaraan', icon: '🚗', group: 'Operasional', roles: ['pemilik', 'admin', 'teknisi'] },
   { key: 'pesanan', href: '/pesanan', label: 'Pesanan / Work Order', icon: '🧾', group: 'Operasional', roles: ['pemilik', 'admin', 'keuangan', 'gudang', 'teknisi'] },
   { key: 'jenis-pekerjaan', href: '/jenis-pekerjaan', label: 'Jenis pekerjaan', icon: '🧰', group: 'Operasional', roles: ['pemilik', 'admin'] },
+  { key: 'checklist', href: '/checklist', label: 'Pemeriksaan bersama', icon: '✅', group: 'Operasional', roles: ['pemilik', 'admin'] },
   { key: 'produksi', href: '/produksi', label: 'Produksi', icon: '🛠️', group: 'Operasional', roles: ['pemilik', 'admin', 'teknisi'] },
   { key: 'persediaan', href: '/persediaan', label: 'Persediaan', icon: '📦', group: 'Gudang & Keuangan', roles: ['pemilik', 'admin', 'keuangan', 'gudang'] },
   { key: 'keuangan', href: '/keuangan', label: 'Keuangan', icon: '💰', group: 'Gudang & Keuangan', roles: ['pemilik', 'admin', 'keuangan'] },
@@ -31,6 +32,7 @@ const PERMS = {
   'pesanan.semua': ['pemilik', 'admin', 'keuangan', 'gudang'], // lihat semua pesanan (teknisi hanya tugasnya)
   'status.semua': ['pemilik', 'admin'],
   'jenis.kelola': ['pemilik', 'admin'],            // master jenis pekerjaan: tambah / edit / nonaktif / hapus
+  'checklist.kelola': ['pemilik', 'admin'],        // master checklist PDF (Pemeriksaan bersama & kualitas): tambah / edit / nonaktif / hapus
   'progres.tulis': ['pemilik', 'admin', 'teknisi'],  // tambah/edit/hapus catatan progres sendiri
   'progres.kelola': ['pemilik', 'admin'],          // edit/hapus catatan progres siapa pun
   'bahan.pakai': ['pemilik', 'admin', 'gudang', 'teknisi'],
@@ -72,6 +74,7 @@ export const PERM_LABEL: Record<Perm, string> = {
   'pesanan.semua': 'Pesanan: lihat semua (teknisi hanya tugasnya)',
   'status.semua': 'Pesanan: ubah ke semua status',
   'jenis.kelola': 'Jenis pekerjaan: tambah / edit / nonaktifkan / hapus',
+  'checklist.kelola': 'Pemeriksaan bersama (checklist PDF): tambah / edit / nonaktifkan / hapus',
   'progres.tulis': 'Produksi: tambah / edit / hapus progres sendiri',
   'progres.kelola': 'Produksi: edit / hapus progres siapa pun',
   'bahan.pakai': 'Produksi: catat pemakaian bahan',
@@ -112,7 +115,7 @@ export const ROLE_COLOR: Record<string, string> = { pemilik: 'violet', admin: 's
 /** Kelompok izin per modul untuk matriks yang mudah dibaca. */
 export const PERM_GROUPS: { label: string; icon: string; perms: Perm[] }[] = [
   { label: 'Pelanggan & Kendaraan', icon: '👤', perms: ['pelanggan.kelola', 'kendaraan.kelola'] },
-  { label: 'Pesanan / Work Order', icon: '🧾', perms: ['pesanan.semua', 'pesanan.kelola', 'pesanan.harga', 'status.semua', 'pesanan.batal', 'pesanan.hapus', 'dokumen.pesanan', 'jenis.kelola'] },
+  { label: 'Pesanan / Work Order', icon: '🧾', perms: ['pesanan.semua', 'pesanan.kelola', 'pesanan.harga', 'status.semua', 'pesanan.batal', 'pesanan.hapus', 'dokumen.pesanan', 'jenis.kelola', 'checklist.kelola'] },
   { label: 'Produksi', icon: '🛠️', perms: ['progres.tulis', 'progres.kelola', 'bahan.pakai', 'bahan.batal'] },
   { label: 'Persediaan', icon: '📦', perms: ['stok.master', 'stok.masuk', 'stok.penyesuaian', 'stok.lihat_biaya'] },
   { label: 'Keuangan', icon: '💰', perms: ['bayar.catat', 'bayar.hapus', 'invoice.kelola', 'biaya.kelola', 'kas.kelola', 'dokumen.keuangan'] },

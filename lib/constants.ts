@@ -13,3 +13,12 @@ export const PAYMENT_TYPES = ['DP', 'Pembayaran tahap', 'Pelunasan', 'Jasa tamba
 export const PAYMENT_METHODS = ['Tunai', 'Transfer bank', 'QRIS', 'Debit/Kartu'];
 /** Daftar bawaan untuk mengisi master `job_types` pertama kali. Daftar aktif dikelola di menu Jenis pekerjaan. */
 export const JOB_TYPES = ['Retrim jok kulit', 'Retrim jok sintetis', 'Ganti plafon', 'Pasang karpet dasar', 'Cover setir', 'Doortrim', 'Restorasi interior klasik', 'Peredam suara', 'Lainnya'];
+
+/** Master checklist PDF. `serah_terima` = Pemeriksaan bersama (Surat Serah Terima), `kualitas` = Checklist pemeriksaan kualitas (Work Order). */
+export const CHECKLIST_TIPE = { serah_terima: 'Pemeriksaan bersama (Surat Serah Terima)', kualitas: 'Pemeriksaan kualitas (Work Order)' } as const;
+export type ChecklistTipe = keyof typeof CHECKLIST_TIPE;
+/** Daftar bawaan untuk mengisi master `checklist_items` pertama kali. */
+export const CHECKLIST_DEFAULTS: Record<ChecklistTipe, readonly string[]> = {
+  serah_terima: ['Hasil pekerjaan sesuai pesanan', 'Kebersihan kabin', 'Barang pribadi pelanggan lengkap', 'Kunci & STNK diterima kembali'],
+  kualitas: ['Jahitan rapi & kuat', 'Warna/material sesuai pesanan', 'Pemasangan presisi, tidak bergelombang', 'Fungsi jok/sabuk/kelistrikan normal', 'Kabin bersih dari sisa bahan'],
+};

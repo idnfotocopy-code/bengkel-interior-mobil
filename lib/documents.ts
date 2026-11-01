@@ -1,4 +1,4 @@
-import { all, one, settings } from './db';
+import { all, one, settings, checklistFor } from './db';
 import { woSummary, periodFinance, receivables, stockReport, cashBalances } from './biz';
 import { rp, num, tgl, addDays, today } from './util';
 import type { User } from './auth';
@@ -60,7 +60,7 @@ export async function workOrder(u: User, id: number): Promise<Out> {
   const usage = all('SELECT mu.*, m.kode, m.nama, m.satuan FROM material_usage mu JOIN materials m ON m.id=mu.material_id WHERE mu.wo_id=? AND mu.batal=0 ORDER BY mu.id', id);
   if (usage.length) { section(doc, 'Bahan yang sudah dipakai'); table(doc, [{ h: 'Tanggal', w: 20 }, { h: 'Kode', w: 12 }, { h: 'Bahan', w: 48 }, { h: 'Qty', w: 20, align: 'right' }], usage.map((m: any) => [tgl(m.tanggal), m.kode, m.nama, `${num(m.qty)} ${m.satuan}`])); }
   section(doc, 'Checklist pemeriksaan kualitas');
-  table(doc, [{ h: 'Item pemeriksaan', w: 60 }, { h: 'OK', w: 10, align: 'center' }, { h: 'Catatan', w: 30 }], ['Jahitan rapi & kuat', 'Warna/material sesuai pesanan', 'Pemasangan presisi, tidak bergelombang', 'Fungsi jok/sabuk/kelistrikan normal', 'Kabin bersih dari sisa bahan'].map(x => [x, '[   ]', '']));
+  table(doc, [{ h: 'Item pemeriksaan', w: 60 }, { h: 'OK', w: 10, align: 'center' }, { h: 'Catatan', w: 30 }], checklistFor('kualitas').map(x => [x, '[   ]', '']));
   signatures(doc, [{ label: 'Dibuat oleh,', title: 'Admin', name: w.pj || u.nama }, { label: 'Dikerjakan oleh,', title: 'Teknisi', name: w.teknisi || '' }, { label: 'Disetujui,', title: 'Pelanggan', name: w.pelanggan }], placeDate(doc, w.tgl_masuk));
   return { buf: await finalize(doc, { by: u.nama, docNo: w.nomor }), filename: `WO-${w.nomor}.pdf` };
 }
@@ -131,7 +131,7 @@ export async function serahTerima(u: User, id: number): Promise<Out> {
   itemTable(doc, id, false);
   section(doc, 'Kondisi kendaraan');
   kv(doc, [['Kondisi saat masuk', w.kondisi], ['Kondisi saat diserahkan', w.kondisi_serah || 'Baik, pekerjaan selesai sesuai pesanan.'], ['Tanggal masuk', tgl(w.tgl_masuk)], ['Tanggal selesai', tgl(w.tgl_selesai)], ['Teknisi', w.teknisi]]);
-  table(doc, [{ h: 'Pemeriksaan bersama', w: 70 }, { h: 'Sesuai', w: 15, align: 'center' }, { h: 'Tidak', w: 15, align: 'center' }], ['Hasil pekerjaan sesuai pesanan', 'Kebersihan kabin', 'Barang pribadi pelanggan lengkap', 'Kunci & STNK diterima kembali'].map(x => [x, '[   ]', '[   ]']));
+  table(doc, [{ h: 'Pemeriksaan bersama', w: 70 }, { h: 'Sesuai', w: 15, align: 'center' }, { h: 'Tidak', w: 15, align: 'center' }], checklistFor('serah_terima').map(x => [x, '[   ]', '[   ]']));
   paragraph(doc, 'Dengan ditandatanganinya berita acara ini, Pihak Kedua menyatakan telah menerima kendaraan beserta hasil pekerjaan dalam keadaan baik. Keluhan setelah serah terima ditangani sesuai ketentuan garansi.');
   signatures(doc, [{ label: 'Yang menyerahkan,', title: st.nama_usaha, name: w.pj || u.nama }, { label: 'Yang menerima,', title: 'Pelanggan', name: w.pelanggan }], placeDate(doc, tanggal));
   return { buf: await finalize(doc, { by: u.nama, docNo: nomor }), filename: `SerahTerima-${nomor}.pdf` };

@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
-import { JOB_TYPES } from './constants';
+import { JOB_TYPES, CHECKLIST_DEFAULTS, ChecklistTipe } from './constants';
 import { nowStr } from './util';
 
 export const ROOT = process.cwd();
@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS invoices(id INTEGER PRIMARY KEY, nomor TEXT UNIQUE NO
 CREATE TABLE IF NOT EXISTS payments(id INTEGER PRIMARY KEY, nomor TEXT UNIQUE NOT NULL, wo_id INTEGER, invoice_id INTEGER, tanggal TEXT NOT NULL, jenis TEXT NOT NULL, jumlah REAL NOT NULL, metode TEXT, cash_account_id INTEGER, catatan TEXT, user_id INTEGER, created_at TEXT);
 CREATE TABLE IF NOT EXISTS expenses(id INTEGER PRIMARY KEY, tanggal TEXT NOT NULL, kategori TEXT NOT NULL, deskripsi TEXT, jumlah REAL NOT NULL, wo_id INTEGER, cash_account_id INTEGER, user_id INTEGER, created_at TEXT);
 CREATE TABLE IF NOT EXISTS job_types(id INTEGER PRIMARY KEY, nama TEXT UNIQUE NOT NULL, deskripsi TEXT, aktif INTEGER NOT NULL DEFAULT 1, urutan INTEGER NOT NULL DEFAULT 0, created_at TEXT);
+CREATE TABLE IF NOT EXISTS checklist_items(id INTEGER PRIMARY KEY, tipe TEXT NOT NULL DEFAULT 'serah_terima', nama TEXT NOT NULL, deskripsi TEXT, urutan INTEGER NOT NULL DEFAULT 0, aktif INTEGER NOT NULL DEFAULT 1, created_at TEXT, UNIQUE(tipe, nama));
 CREATE TABLE IF NOT EXISTS audit_logs(id INTEGER PRIMARY KEY, user_id INTEGER, username TEXT, aksi TEXT, entitas TEXT, entitas_id TEXT, detail TEXT, at TEXT);
 CREATE INDEX IF NOT EXISTS ix_wo_status ON work_orders(status);
 CREATE INDEX IF NOT EXISTS ix_mov_mat ON stock_movements(material_id, tanggal);
@@ -56,6 +57,7 @@ export function db(): Database.Database {
       seed();
     }
     seedJobTypes(d);
+    seedChecklist(d);
   }
   return g.__bimdb;
 }
@@ -116,6 +118,31 @@ export function seedJobTypes(d: Database.Database = db()) {
   const now = nowStr();
   const ins = d.prepare('INSERT OR IGNORE INTO job_types(nama, deskripsi, aktif, urutan, created_at) VALUES(?,?,1,?,?)');
   d.transaction(() => JOB_TYPES.forEach((nama, i) => ins.run(nama, null, (i + 1) * 10, now)))();
+}
+
+/**
+ * Isi master checklist (Pemeriksaan bersama & pemeriksaan kualitas) dengan daftar bawaan
+ * satu kali per tipe — hanya bila tipe itu belum pernah diisi. Penanda disimpan di settings
+ * agar item yang sengaja dihapus pengguna tidak muncul lagi saat aplikasi restart.
+ */
+export function seedChecklist(d: Database.Database = db()) {
+  const now = nowStr();
+  const ins = d.prepare('INSERT OR IGNORE INTO checklist_items(tipe, nama, deskripsi, urutan, aktif, created_at) VALUES(?,?,NULL,?,1,?)');
+  d.transaction(() => {
+    for (const [tipe, items] of Object.entries(CHECKLIST_DEFAULTS)) {
+      const key = `checklist_seeded_${tipe}`;
+      if (d.prepare('SELECT 1 FROM settings WHERE key=?').get(key)) continue;
+      const n = (d.prepare('SELECT COUNT(*) n FROM checklist_items WHERE tipe=?').get(tipe) as any).n;
+      if (!n) items.forEach((nama, i) => ins.run(tipe, nama, (i + 1) * 10, now));
+      d.prepare('INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run(key, '1');
+    }
+  })();
+}
+
+/** Daftar checklist aktif untuk PDF; bila kosong, pakai daftar bawaan agar dokumen tidak pernah tanpa checklist. */
+export function checklistFor(tipe: ChecklistTipe): string[] {
+  const rows = all<{ nama: string }>('SELECT nama FROM checklist_items WHERE tipe=? AND aktif=1 ORDER BY urutan, nama', tipe).map(r => r.nama);
+  return rows.length ? rows : [...CHECKLIST_DEFAULTS[tipe]];
 }
 
 export const all = <T = any>(sql: string, ...p: any[]): T[] => db().prepare(sql).all(...p) as T[];

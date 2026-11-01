@@ -54,6 +54,7 @@ Alternatif bila belum ada data asli sama sekali: hentikan server, `npm run reset
 | Kendaraan | ✓ | ✓ | – | – | lihat |
 | Pesanan / WO | ✓ | ✓ | lihat semua | lihat | hanya tugasnya |
 | Jenis pekerjaan | ✓ | ✓ | – | – | – |
+| Pemeriksaan bersama (checklist PDF) | ✓ | ✓ | – | – | – |
 | Produksi | ✓ | ✓ | – | – | ✓ |
 | Persediaan | ✓ | ✓ | lihat | ✓ | – |
 | Keuangan | ✓ | ✓ (tanpa kas) | ✓ | – | – |
@@ -72,6 +73,7 @@ Tombol yang tidak diizinkan disembunyikan, dan setiap server action memeriksa iz
 | Pesanan & item: tambah/edit/hapus, ubah harga | ✓ | ✓ | – | – | – |
 | Pesanan: batalkan (wajib alasan) / hapus permanen* | ✓ | ✓ | – | – | – |
 | Jenis pekerjaan: tambah/edit/nonaktifkan/hapus** | ✓ | ✓ | – | – | – |
+| Pemeriksaan bersama (checklist PDF): tambah/edit/nonaktifkan/hapus | ✓ | ✓ | – | – | – |
 | Progres produksi: tambah | ✓ | ✓ | – | – | ✓ (tugasnya) |
 | Progres produksi: edit/hapus | ✓ semua | ✓ semua | – | – | ✓ catatan sendiri |
 | Pemakaian bahan pada pesanan | ✓ | ✓ | – | ✓ | ✓ |
@@ -110,6 +112,7 @@ Aplikasi mendukung beberapa cabang dalam satu database. Cabang awal: **Bekasi (B
   - 10 status alur kerja, ditambah Dibatalkan (pembatalan butuh alasan dan konfirmasi).
   - Penugasan teknisi dan riwayat status.
 - **Jenis pekerjaan** (`/jenis-pekerjaan`, pemilik & admin): master data jenis pekerjaan yang tampil sebagai pilihan di form pesanan baru/edit. Tambah, edit (nama, deskripsi, urutan tampil; ganti nama bisa ikut diterapkan ke pesanan lama), nonaktifkan/aktifkan, hapus. Jenis yang sudah dipakai pesanan hanya dinonaktifkan. Tabel `job_types` dibuat otomatis saat aplikasi start dan diisi daftar bawaan bila masih kosong.
+- **Pemeriksaan bersama** (`/checklist`, pemilik & admin): master checklist yang dicetak di PDF. Tab *Pemeriksaan bersama* = tabel di **Surat Serah Terima** (kolom Sesuai / Tidak, dicentang tangan); tab *Pemeriksaan kualitas* = checklist di **Work Order** (kolom OK / Catatan). Tambah, edit (nama, urutan, keterangan), nonaktifkan/aktifkan, hapus. Hanya item aktif yang dicetak, urut menurut kolom urutan; bila tidak ada item aktif, PDF memakai daftar bawaan. Tabel `checklist_items` (berlaku untuk semua cabang) dibuat otomatis saat aplikasi start dan diisi daftar bawaan sekali saja (database lama ikut terisi tanpa menghapus data).
 - **Produksi**: papan kerja untuk teknisi, progres % dengan foto, pemakaian bahan yang langsung mengurangi stok, dan tombol status.
 - **Persediaan**:
   - Master bahan dan supplier.
