@@ -1,3 +1,6 @@
+import { SearchSelect } from '@/components/SearchSelect';
+import { ItemLineInputs } from '@/components/ItemLineInputs';
+import { itemSuggestions } from '@/lib/items';
 import Link from 'next/link';
 import { requireUser } from '@/lib/auth';
 import { all, one } from '@/lib/db';
@@ -84,11 +87,7 @@ export default function Page({ params, searchParams }: { params: { id: string };
           </tbody></table></TableWrap>
           {harga && !batal && <form action={addItem} className="grid gap-2 sm:grid-cols-12 p-4 border-t bg-stone-50">
             <input type="hidden" name="wo_id" value={w.id} />
-            <select name="jenis" className="input sm:col-span-2"><option value="jasa">Jasa</option><option value="barang">Barang</option></select>
-            <input name="deskripsi" placeholder="Deskripsi item" className="input sm:col-span-4" required />
-            <input name="qty" type="number" step="0.01" defaultValue={1} className="input sm:col-span-1" />
-            <input name="satuan" defaultValue="paket" className="input sm:col-span-2" />
-            <input name="harga" type="number" step="any" min={0} placeholder="Harga" className="input sm:col-span-2" required />
+            <ItemLineInputs suggestions={itemSuggestions(w.branch_id)} />
             <button className="btn btn-primary sm:col-span-1">+</button>
           </form>}
         </Card>
@@ -101,7 +100,7 @@ export default function Page({ params, searchParams }: { params: { id: string };
           </tbody></table></TableWrap>
           {can(u.role, 'bahan.pakai') && !batal && <form action={useMaterial} className="grid gap-2 sm:grid-cols-12 p-4 border-t bg-stone-50">
             <input type="hidden" name="wo_id" value={w.id} />
-            <select name="material_id" className="input sm:col-span-6" required><option value="">— pilih bahan —</option>{mats.map((m: any) => <option key={m.id} value={m.id}>{m.kode} · {m.nama} (stok {num(m.stok)} {m.satuan})</option>)}</select>
+            <SearchSelect name="material_id" className="sm:col-span-6" required placeholder="— pilih bahan —" searchPlaceholder="Cari bahan (nama / kode)…" options={mats.map((m: any) => ({ value: m.id, label: `${m.kode} · ${m.nama} (stok ${num(m.stok)} ${m.satuan || ''})`, search: m.kode }))} />
             <input name="qty" type="number" step="0.01" min="0.01" placeholder="Jumlah" className="input sm:col-span-2" required />
             <input name="tanggal" type="date" defaultValue={today()} className="input sm:col-span-3" />
             <button className="btn btn-primary sm:col-span-1">Catat</button>

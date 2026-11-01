@@ -1,3 +1,5 @@
+import { ItemLineInputs } from '@/components/ItemLineInputs';
+import { itemSuggestions } from '@/lib/items';
 import Link from 'next/link';
 import { requireUser } from '@/lib/auth';
 import { redirect } from 'next/navigation';
@@ -16,7 +18,7 @@ export default function Page({ searchParams }: { searchParams: any }) {
   const u = requireUser('pesanan');
   if (!can(u.role, 'pesanan.kelola')) redirect('/pesanan?err=' + encodeURIComponent('Anda tidak berhak membuat pesanan.'));
   const cab = activeBranchId(u);
-  const customers = all('SELECT id, kode, nama FROM customers WHERE branch_id=? ORDER BY nama', cab);
+  const customers = all('SELECT id, kode, nama, telepon FROM customers WHERE branch_id=? ORDER BY nama', cab);
   const vehicles = all('SELECT v.id, v.customer_id, v.nopol, v.merek, v.tipe FROM vehicles v JOIN customers c ON c.id=v.customer_id WHERE c.branch_id=? ORDER BY v.nopol', cab);
   const teknisi = all("SELECT id, nama FROM users WHERE role='teknisi' AND aktif=1 AND (branch_id=? OR branch_id IS NULL) ORDER BY nama", cab);
   const jobs = all<{ nama: string }>('SELECT nama FROM job_types WHERE aktif=1 ORDER BY urutan, nama');
@@ -38,11 +40,7 @@ export default function Page({ searchParams }: { searchParams: any }) {
         <Field label="Deskripsi / permintaan pelanggan" className="sm:col-span-2 lg:col-span-3"><textarea name="deskripsi" className="input" rows={2} /></Field>
       </div></Card>
       <Card title="Item pertama (opsional — item lain bisa ditambah setelah disimpan)"><div className="grid gap-3 sm:grid-cols-6">
-        <Field label="Jenis"><select name="item_jenis" className="input"><option value="jasa">Jasa</option><option value="barang">Barang</option></select></Field>
-        <Field label="Deskripsi" className="sm:col-span-2"><input name="item_deskripsi" className="input" /></Field>
-        <Field label="Qty"><input name="item_qty" type="number" step="0.01" defaultValue={1} className="input" /></Field>
-        <Field label="Satuan"><input name="item_satuan" defaultValue="paket" className="input" /></Field>
-        <Field label="Harga satuan (Rp)"><input name="item_harga" type="number" step="any" min={0} className="input" /></Field>
+        <ItemLineInputs suggestions={itemSuggestions(cab)} prefix="item_" layout="grid" />
       </div></Card>
       <button className="btn btn-primary px-6">Simpan pesanan</button>
     </form>

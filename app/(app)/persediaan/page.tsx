@@ -1,3 +1,4 @@
+import { SearchSelect } from '@/components/SearchSelect';
 import Link from 'next/link';
 import { requireUser } from '@/lib/auth';
 import { all } from '@/lib/db';
@@ -53,7 +54,7 @@ export default function Page({ searchParams }: { searchParams: any }) {
         <Field label="Stok awal"><input name="stok_awal" type="number" step="any" min={0} defaultValue={0} className="input" /></Field>
         <Field label="Stok minimum"><input name="minimum" type="number" step="any" min={0} defaultValue={0} className="input" /></Field>
         <Field label="Harga beli / satuan (Rp)"><input name="harga_beli" type="number" step="any" min={0} defaultValue={0} className="input" /></Field>
-        <Field label="Pemasok"><select name="supplier_id" className="input"><option value="">—</option>{suppliers.map((s: any) => <option key={s.id} value={s.id}>{s.nama}</option>)}</select></Field>
+        <Field label="Pemasok"><SearchSelect name="supplier_id" placeholder="—" searchPlaceholder="Cari pemasok…" options={suppliers.map((s: any) => ({ value: s.id, label: s.nama }))} /></Field>
         <Field label="Lokasi penyimpanan"><input name="lokasi" className="input" /></Field>
         <div className="flex items-end"><button className="btn btn-primary">Simpan bahan</button></div>
       </form></Card> : <p className="text-xs text-slate-500">Peran Anda hanya dapat melihat daftar bahan. Tambah/edit/hapus bahan: Pemilik, Admin, Gudang.</p>}
@@ -61,12 +62,12 @@ export default function Page({ searchParams }: { searchParams: any }) {
 
     {tab === 'mutasi' && (() => {
       const mov = all(`SELECT s.*, m.kode, m.nama, m.satuan, w.nomor wo_nomor, us.nama oleh FROM stock_movements s JOIN materials m ON m.id=s.material_id LEFT JOIN work_orders w ON w.id=s.wo_id LEFT JOIN users us ON us.id=s.user_id WHERE s.branch_id=? ORDER BY s.tanggal DESC, s.id DESC LIMIT 100`, cab);
-      const opt = activeMats.map((m: any) => <option key={m.id} value={m.id}>{m.kode} · {m.nama} (stok {num(m.stok)} {m.satuan})</option>);
+      const matOpts = activeMats.map((m: any) => ({ value: m.id, label: `${m.kode} · ${m.nama} (stok ${num(m.stok)} ${m.satuan || ''})`, search: m.kode }));
       return <div className="space-y-5">
         <div className="grid gap-5 lg:grid-cols-2">
           {can(u.role, 'stok.masuk') && <Card title="➕ Stok masuk (pembelian)"><form action={stockMove} className="grid gap-3 sm:grid-cols-2">
             <input type="hidden" name="tipe" value="masuk" />
-            <Field label="Bahan" className="sm:col-span-2"><select name="material_id" className="input" required><option value="">—</option>{opt}</select></Field>
+            <Field label="Bahan" className="sm:col-span-2"><SearchSelect name="material_id" required options={matOpts} placeholder="— pilih bahan —" searchPlaceholder="Cari bahan (nama / kode)…" /></Field>
             <Field label="Jumlah"><input name="qty" type="number" step="0.01" min="0.01" className="input" required /></Field>
             <Field label="Harga beli / satuan (Rp)"><input name="harga" type="number" step="any" min={0} className="input" /></Field>
             <Field label="Tanggal"><input name="tanggal" type="date" defaultValue={today()} className="input" /></Field>
@@ -77,7 +78,7 @@ export default function Page({ searchParams }: { searchParams: any }) {
             <div><button className="btn btn-primary w-full">Simpan stok masuk</button></div>
           </form></Card>}
           {can(u.role, 'stok.penyesuaian') && <Card title="➖ Barang keluar / penyesuaian stok"><form action={stockMove} className="grid gap-3 sm:grid-cols-2">
-            <Field label="Bahan" className="sm:col-span-2"><select name="material_id" className="input" required><option value="">—</option>{opt}</select></Field>
+            <Field label="Bahan" className="sm:col-span-2"><SearchSelect name="material_id" required options={matOpts} placeholder="— pilih bahan —" searchPlaceholder="Cari bahan (nama / kode)…" /></Field>
             <Field label="Jenis"><select name="tipe" className="input"><option value="keluar">Barang keluar (bukan untuk pesanan)</option><option value="penyesuaian">Penyesuaian (stok opname)</option></select></Field>
             <Field label="Mode penyesuaian"><select name="mode" className="input"><option value="delta">Jumlah = selisih (+/−)</option><option value="set">Jumlah = stok fisik hasil hitung</option></select></Field>
             <Field label="Jumlah"><input name="qty" type="number" step="0.01" className="input" required /></Field>

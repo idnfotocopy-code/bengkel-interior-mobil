@@ -1,8 +1,9 @@
+import { SearchSelect } from './SearchSelect';
 import { Field } from './ui';
 export function VehicleForm({ v, customers, disabled, customerId }: { v?: any; customers: any[]; disabled?: boolean; customerId?: number }) {
   return (<>
-    <Field label="Pemilik (pelanggan) *"><select name="customer_id" className="input" required defaultValue={v?.customer_id || customerId || ''} disabled={disabled}>
-      <option value="">— pilih —</option>{customers.map((c: any) => <option key={c.id} value={c.id}>{c.kode} · {c.nama}</option>)}</select></Field>
+    <Field label="Pemilik (pelanggan) *"><SearchSelect name="customer_id" required defaultValue={v?.customer_id || customerId || ''} disabled={disabled} searchPlaceholder="Cari nama / kode pelanggan…"
+      options={customers.map((c: any) => ({ value: c.id, label: `${c.kode} · ${c.nama}`, search: c.telepon || '' }))} /></Field>
     <div className="grid grid-cols-2 gap-3">
       <Field label="Nomor polisi *"><input name="nopol" className="input uppercase" required defaultValue={v?.nopol} disabled={disabled} placeholder="B 1234 ABC" /></Field>
       <Field label="Tahun"><input name="tahun" type="number" className="input" defaultValue={v?.tahun} disabled={disabled} /></Field>

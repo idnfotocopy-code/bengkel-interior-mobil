@@ -1,3 +1,4 @@
+import { SearchSelect } from '@/components/SearchSelect';
 import Link from 'next/link';
 import { requireUser } from '@/lib/auth';
 import { all } from '@/lib/db';
@@ -59,7 +60,7 @@ export default function Page({ searchParams }: { searchParams: any }) {
             </form>}
             {can(u.role, 'bahan.pakai') && <form action={useMaterial} className="grid gap-2 sm:grid-cols-6">
               <input type="hidden" name="wo_id" value={w.id} /><input type="hidden" name="back" value={back} />
-              <select name="material_id" className="input sm:col-span-3" required><option value="">— bahan dipakai —</option>{mats.map((m: any) => <option key={m.id} value={m.id}>{m.kode} · {m.nama} ({num(m.stok)} {m.satuan})</option>)}</select>
+              <SearchSelect name="material_id" className="sm:col-span-3" required placeholder="— bahan dipakai —" searchPlaceholder="Cari bahan…" options={mats.map((m: any) => ({ value: m.id, label: `${m.kode} · ${m.nama} (stok ${num(m.stok)} ${m.satuan || ''})`, search: m.kode }))} />
               <input name="qty" type="number" step="0.01" min="0.01" placeholder="Qty" className="input sm:col-span-1" required />
               <input type="hidden" name="tanggal" value={today()} />
               <button className="btn btn-sm sm:col-span-2">Catat pemakaian</button>

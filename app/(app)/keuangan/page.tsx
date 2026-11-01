@@ -1,3 +1,4 @@
+import { SearchSelect } from '@/components/SearchSelect';
 import Link from 'next/link';
 import { requireUser } from '@/lib/auth';
 import { all } from '@/lib/db';
@@ -28,8 +29,8 @@ export default function Page({ searchParams }: { searchParams: any }) {
     { key: 'kas', label: '🏦 Kas & bank', href: `/keuangan?tab=kas&${qs}` },
   ];
   const accounts = all('SELECT * FROM cash_accounts WHERE aktif=1 AND branch_id=? ORDER BY id', cab);
-  const openWos = all("SELECT w.id, w.nomor, c.nama pelanggan FROM work_orders w JOIN customers c ON c.id=w.customer_id WHERE w.status!='Dibatalkan' AND w.branch_id=? ORDER BY w.id DESC LIMIT 200", cab);
-  const woOpts = openWos.map((w: any) => <option key={w.id} value={w.id}>{w.nomor} · {w.pelanggan}</option>);
+  const openWos = all("SELECT w.id, w.nomor, c.nama pelanggan, v.nopol FROM work_orders w JOIN customers c ON c.id=w.customer_id LEFT JOIN vehicles v ON v.id=w.vehicle_id WHERE w.status!='Dibatalkan' AND w.branch_id=? ORDER BY w.id DESC LIMIT 200", cab);
+  const woOpts = openWos.map((w: any) => ({ value: w.id, label: `${w.nomor} · ${w.pelanggan}`, search: w.nopol || '' }));
   const acctOpts = accounts.map((a: any) => <option key={a.id} value={a.id}>{a.nama}</option>);
   const canBayar = can(u.role, 'bayar.catat'), canEditBayar = can(u.role, 'bayar.hapus'), canInv = can(u.role, 'invoice.kelola'), canBiaya = can(u.role, 'biaya.kelola'), canKas = can(u.role, 'kas.kelola');
   const tambah = tab === 'pembayaran' && canBayar ? ['+ Tambah pembayaran', '#tambah'] : tab === 'pengeluaran' && canBiaya ? ['+ Tambah pengeluaran', '#tambah'] : tab === 'invoice' && canInv ? ['+ Buat invoice', '#tambah'] : tab === 'kas' && canKas ? ['+ Tambah akun kas', '#tambah'] : null;
@@ -53,7 +54,7 @@ export default function Page({ searchParams }: { searchParams: any }) {
         {canBayar && <Card id="tambah" title="➕ Tambah pembayaran"><form action={addPayment} className="grid-form">
           <div className="col-span-full"><BranchBadge label="Cabang" /></div>
           <input type="hidden" name="back" value={bk} />
-          <Field label="Pesanan *"><select name="wo_id" className="input" required><option value="">— pilih pesanan —</option>{woOpts}</select></Field>
+          <Field label="Pesanan *"><SearchSelect name="wo_id" required options={woOpts} placeholder="— pilih pesanan —" searchPlaceholder="Cari no. pesanan / pelanggan…" /></Field>
           <Field label="Jenis"><select name="jenis" className="input">{PAYMENT_TYPES.map(x => <option key={x}>{x}</option>)}</select></Field>
           <Field label="Jumlah (Rp) *"><input type="number" step="any" min={1} name="jumlah" className="input" required /></Field>
           <Field label="Tanggal"><input type="date" name="tanggal" defaultValue={today()} className="input" /></Field>
@@ -91,7 +92,7 @@ export default function Page({ searchParams }: { searchParams: any }) {
           <Field label="Kategori"><select name="kategori" className="input">{EXPENSE_CATEGORIES.map(k => <option key={k}>{k}</option>)}</select></Field>
           <Field label="Jumlah (Rp)"><input type="number" step="any" name="jumlah" min={1} className="input" required /></Field>
           <Field label="Keterangan" className="sm:col-span-2"><input name="deskripsi" className="input" required /></Field>
-          <Field label="Terkait pesanan (opsional)"><select name="wo_id" className="input"><option value="">—</option>{wos.map((w: any) => <option key={w.id} value={w.id}>{w.nomor}</option>)}</select></Field>
+          <Field label="Terkait pesanan (opsional)"><SearchSelect name="wo_id" placeholder="—" searchPlaceholder="Cari no. pesanan…" options={wos.map((w: any) => ({ value: w.id, label: w.nomor }))} /></Field>
           <Field label="Dibayar dari"><select name="cash_account_id" className="input">{accounts.map((a: any) => <option key={a.id} value={a.id}>{a.nama}</option>)}</select></Field>
           <div className="flex items-end"><button className="btn btn-primary">Simpan pengeluaran</button></div>
         </form><p className="text-xs text-slate-500 mt-2">Pembelian bahan sebaiknya dicatat dari menu Persediaan → Stok masuk (centang “catat sebagai pengeluaran”) agar stok ikut bertambah.</p></Card>}
@@ -121,7 +122,7 @@ export default function Page({ searchParams }: { searchParams: any }) {
       return <div className="space-y-5">
         {canInv && <Card id="tambah" title="➕ Buat invoice"><form action={createInvoice} className="grid-form">
           <input type="hidden" name="back" value={bk} />
-          <Field label="Pesanan *"><select name="wo_id" className="input" required><option value="">— pilih pesanan —</option>{woOpts}</select></Field>
+          <Field label="Pesanan *"><SearchSelect name="wo_id" required options={woOpts} placeholder="— pilih pesanan —" searchPlaceholder="Cari no. pesanan / pelanggan…" /></Field>
           <Field label="Tanggal"><input type="date" name="tanggal" defaultValue={today()} className="input" /></Field>
           <Field label="Jatuh tempo (kosong = otomatis)"><input type="date" name="jatuh_tempo" className="input" /></Field>
           <Field label="Catatan"><input name="catatan" className="input" /></Field>
