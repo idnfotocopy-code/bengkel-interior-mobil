@@ -1,12 +1,30 @@
 import Link from 'next/link';
 import { requireUser } from '@/lib/auth';
-import { all, one } from '@/lib/db';
+import { all, one, JOB_PHOTO_COLS } from '@/lib/db';
+import { uploadUrl } from '@/lib/upload';
 import { can } from '@/lib/rbac';
 import { num } from '@/lib/util';
 import { Card, Flash, PageHeader, Empty, TableWrap, Field, Badge, Stat } from '@/components/ui';
 import { ConfirmButton } from '@/components/Confirm';
 import { saveJobType, deleteJobType, toggleJobType } from './actions';
 export const dynamic = 'force-dynamic';
+
+const fotosOf = (j: any): string[] => JOB_PHOTO_COLS.map(c => j?.[c]).filter(Boolean);
+/** Input foto sampel (maks. 3 slot). Slot berisi menampilkan foto lama + opsi ganti/hapus. */
+function PhotoFields({ j }: { j?: any }) {
+  return <div className="sm:col-span-2 lg:col-span-3">
+    <div className="label mb-1 text-sm font-medium">Foto sampel pekerjaan <span className="text-xs font-normal text-slate-500">(maks. 3 foto, PNG/JPG ≤ 3 MB — tampil di PDF Penawaran, Work Order, Serah Terima)</span></div>
+    <div className="grid gap-3 sm:grid-cols-3">
+      {JOB_PHOTO_COLS.map((c, i) => <div key={c} className="rounded border border-stone-200 p-2 space-y-1.5">
+        <div className="text-xs text-slate-500">Foto {i + 1}</div>
+        {j?.[c] ? <a href={uploadUrl(j[c])} target="_blank"><img src={uploadUrl(j[c])} alt={`sampel ${i + 1}`} className="h-28 w-full object-cover rounded" /></a>
+          : <div className="h-28 rounded bg-stone-100 grid place-items-center text-2xl text-stone-400">📷</div>}
+        <input type="file" name={c} accept="image/png,image/jpeg" className="text-xs w-full" />
+        {j?.[c] && <label className="text-xs flex items-center gap-1.5"><input type="checkbox" name={`hapus_${c}`} value="1" /> Hapus foto ini</label>}
+      </div>)}
+    </div>
+  </div>;
+}
 
 export default function Page({ searchParams }: { searchParams: any }) {
   const u = requireUser('jenis-pekerjaan');
@@ -44,6 +62,7 @@ export default function Page({ searchParams }: { searchParams: any }) {
         <Field label="Nama jenis pekerjaan *"><input name="nama" defaultValue={ed.nama} className="input" required maxLength={80} /></Field>
         <Field label="Urutan tampil"><input name="urutan" type="number" step={1} defaultValue={ed.urutan} className="input" /></Field>
         <Field label="Deskripsi"><input name="deskripsi" defaultValue={ed.deskripsi || ''} className="input" placeholder="opsional" /></Field>
+        <PhotoFields j={ed} />
         {ed.dipakai > 0 && <label className="text-sm flex items-center gap-2 sm:col-span-2 lg:col-span-3"><input type="checkbox" name="ganti_pesanan" value="1" defaultChecked /> Bila nama diubah, ganti juga di {num(ed.dipakai)} pesanan yang memakai “{ed.nama}”</label>}
         <div className="flex items-end gap-2"><button className="btn btn-primary">Simpan perubahan</button><Link className="btn" href={self}>Batal</Link></div>
       </form>
@@ -58,9 +77,10 @@ export default function Page({ searchParams }: { searchParams: any }) {
         <div className="flex flex-wrap gap-1.5 px-4 pt-3 text-xs">
           {[['', 'Semua'], ['aktif', 'Aktif'], ['nonaktif', 'Nonaktif']].map(([k, l]) => <Link key={k} href={filt(k)} className={`badge ${status === k ? 'bg-brand-600 text-white' : 'bg-stone-100 text-stone-600'}`}>{l}</Link>)}
         </div>
-        {rows.length ? <TableWrap><table className="tbl"><thead><tr><th className="num">Urutan</th><th>Nama</th><th>Deskripsi</th><th>Status</th><th className="num">Dipakai pesanan</th>{kelola && <th className="text-right">Aksi</th>}</tr></thead><tbody>
+        {rows.length ? <TableWrap><table className="tbl"><thead><tr><th className="num">Urutan</th><th>Sampel</th><th>Nama</th><th>Deskripsi</th><th>Status</th><th className="num">Dipakai pesanan</th>{kelola && <th className="text-right">Aksi</th>}</tr></thead><tbody>
           {rows.map((j: any) => <tr key={j.id} className={`${j.aktif ? '' : 'opacity-60'} ${j.id === hl || j.id === editId ? 'bg-amber-50' : ''}`}>
             <td className="num">{j.urutan}</td>
+            <td>{fotosOf(j).length ? <div className="flex gap-1">{fotosOf(j).map((f, i) => <a key={i} href={uploadUrl(f)} target="_blank"><img src={uploadUrl(f)} alt="" className="w-12 h-9 object-cover rounded" /></a>)}</div> : <span className="text-xs text-slate-400">—</span>}</td>
             <td className="font-medium">{j.nama}</td>
             <td className="text-xs text-slate-600">{j.deskripsi || '-'}</td>
             <td>{j.aktif ? <Badge color="green">aktif</Badge> : <Badge color="red">nonaktif</Badge>}</td>
@@ -80,6 +100,7 @@ export default function Page({ searchParams }: { searchParams: any }) {
         <Field label="Nama jenis pekerjaan *"><input name="nama" className="input" required maxLength={80} placeholder="mis. Ganti headliner custom" /></Field>
         <Field label="Urutan tampil"><input name="urutan" type="number" step={1} defaultValue={nextUrut} className="input" /></Field>
         <Field label="Deskripsi"><input name="deskripsi" className="input" placeholder="opsional, mis. termasuk bongkar pasang" /></Field>
+        <PhotoFields />
         <div className="flex items-end"><button className="btn btn-primary">Simpan jenis pekerjaan</button></div>
       </form><p className="text-xs text-slate-500 mt-2">Urutan kecil tampil lebih dulu di pilihan form pesanan. Jenis baru langsung aktif.</p></Card>
         : <p className="text-xs text-slate-500">Peran Anda hanya dapat melihat daftar. Tambah/edit/hapus: Pemilik, Admin.</p>}

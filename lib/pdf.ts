@@ -200,6 +200,48 @@ export function personBlock(label: string, title: string, name: string, role?: s
   return { label, title, name, image: byRole?.gambar || null };
 }
 
+/** Gambar foto (PNG/JPG) yang bisa dibaca pdfkit; '' bila tidak ada / format lain. */
+function printableImage(name?: string | null): string {
+  const p = uploadPath(name);
+  if (!p || !/\.(png|jpe?g)$/i.test(p)) return '';
+  try { fs.accessSync(p, fs.constants.R_OK); return p; } catch { return ''; }
+}
+/**
+ * Bagian "Sampel pekerjaan": foto contoh dari master Jenis pekerjaan (maks. 3), di tengah halaman
+ * dengan keterangan nama jenis. Dilewati diam-diam bila tidak ada file yang bisa dicetak.
+ */
+export function samplePhotos(doc: Doc, info: { nama: string; deskripsi?: string; fotos: string[] } | null) {
+  if (!info) return;
+  const files = info.fotos.map(printableImage).filter(Boolean).slice(0, 3);
+  if (!files.length) return;
+  const W = cw(doc), gap = 12, n = files.length;
+  const iw = Math.min(n === 1 ? 220 : 200, (W - gap * (n - 1)) / n), ih = n === 1 ? 160 : 130;
+  if (doc.y + 22 + ih + 30 > doc.page.height - 70) doc.addPage();
+  section(doc, `Sampel pekerjaan — ${info.nama}`);
+  const y = doc.y, totalW = iw * n + gap * (n - 1); let x = M + (W - totalW) / 2;
+  for (const f of files) {
+    try { doc.image(f, x, y, { fit: [iw, ih], align: 'center', valign: 'center' }); } catch { /* file rusak: lewati */ }
+    doc.rect(x, y, iw, ih).lineWidth(0.4).strokeColor('#d6ccc2').stroke();
+    x += iw + gap;
+  }
+  doc.strokeColor('#000');
+  doc.font('Helvetica-Oblique').fontSize(8).fillColor('#444').text(`Contoh hasil pekerjaan: ${info.nama}${info.deskripsi ? ' — ' + info.deskripsi : ''}. Foto sebagai ilustrasi, hasil akhir menyesuaikan kendaraan & bahan.`, M, y + ih + 5, { width: W, align: 'center' });
+  doc.fillColor('#000').font('Helvetica'); doc.x = M; doc.moveDown(0.6);
+}
+/** Versi kecil (thumbnail) untuk invoice. */
+export function sampleThumb(doc: Doc, info: { nama: string; fotos: string[] } | null) {
+  if (!info) return;
+  const f = info.fotos.map(printableImage).find(Boolean);
+  if (!f) return;
+  const ih = 60, iw = 90;
+  if (doc.y + ih + 10 > doc.page.height - 70) return;
+  const y = doc.y;
+  try { doc.image(f, M, y, { fit: [iw, ih], align: 'center', valign: 'center' }); } catch { return; }
+  doc.rect(M, y, iw, ih).lineWidth(0.4).strokeColor('#d6ccc2').stroke().strokeColor('#000');
+  doc.font('Helvetica-Oblique').fontSize(8).fillColor('#444').text(`Sampel pekerjaan: ${info.nama}`, M + iw + 8, y + ih / 2 - 5, { width: cw(doc) - iw - 8 });
+  doc.fillColor('#000').font('Helvetica'); doc.x = M; doc.y = y + ih + 8;
+}
+
 export function finalize(doc: Doc, info: { by: string; docNo?: string }): Promise<Buffer> {
   const s = ident(doc);
   const range = doc.bufferedPageRange();

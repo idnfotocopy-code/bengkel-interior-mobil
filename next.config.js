@@ -3,6 +3,6 @@ module.exports = {
   eslint: { ignoreDuringBuilds: true },
   experimental: {
     serverComponentsExternalPackages: ['better-sqlite3', 'pdfkit', 'bcryptjs'],
-    serverActions: { bodySizeLimit: '5mb' },
+    serverActions: { bodySizeLimit: '10mb' },
   },
 };

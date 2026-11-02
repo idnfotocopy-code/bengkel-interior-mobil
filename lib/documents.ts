@@ -1,8 +1,8 @@
-import { all, one, settings, checklistFor } from './db';
+import { all, one, settings, checklistFor, jobTypePhotos } from './db';
 import { woSummary, periodFinance, receivables, stockReport, cashBalances } from './biz';
 import { rp, num, tgl, addDays, today } from './util';
 import type { User } from './auth';
-import { createDoc, setDocBranch, kop, heading, section, twoCol, table, totals, paragraph, note, box, signatures, signBlock, personBlock, finalize, placeDate, terbilang, kv, Doc, BRAND, M } from './pdf';
+import { createDoc, setDocBranch, kop, heading, section, twoCol, table, totals, paragraph, note, box, signatures, signBlock, personBlock, samplePhotos, sampleThumb, finalize, placeDate, terbilang, kv, Doc, BRAND, M } from './pdf';
 
 type Out = { buf: Buffer; filename: string };
 
@@ -40,6 +40,7 @@ export async function penawaran(u: User, id: number): Promise<Out> {
   if (w.deskripsi) note(doc, w.deskripsi);
   itemTable(doc, id);
   totals(doc, [['Subtotal jasa', rp(sm.jasa)], ['Subtotal barang/bahan', rp(sm.barang)], ...(sm.diskon ? [['Diskon', '- ' + rp(sm.diskon)] as [string, string]] : []), ['TOTAL PENAWARAN', rp(sm.total), true], ['Estimasi waktu pengerjaan', `${tgl(w.tgl_masuk)} – ${tgl(w.target_selesai)}`]]);
+  samplePhotos(doc, jobTypePhotos(w.jenis_pekerjaan));
   box(doc, 'Syarat & ketentuan', `${st.syarat_penawaran || ''}\nPenawaran ini berlaku sampai ${tgl(berlaku)}.`);
   paragraph(doc, 'Demikian penawaran ini kami sampaikan. Atas perhatian dan kepercayaan Bapak/Ibu, kami ucapkan terima kasih.');
   signatures(doc, [personBlock('Hormat kami,', st.nama_usaha, w.pj || u.nama, w.pj ? w.pj_role : u.role), { label: 'Disetujui oleh,', title: 'Pelanggan', name: w.pelanggan }], placeDate(doc, tanggal));
@@ -55,6 +56,7 @@ export async function workOrder(u: User, id: number): Promise<Out> {
   twoCol(doc, custBlock(w), vehBlock(w));
   section(doc, 'Pekerjaan & jadwal');
   kv(doc, [['Jenis pekerjaan', w.jenis_pekerjaan], ['Deskripsi / permintaan', w.deskripsi], ['Tanggal masuk', tgl(w.tgl_masuk)], ['Target selesai', tgl(w.target_selesai)], ['Penanggung jawab', w.pj], ['Teknisi', w.teknisi || 'Belum ditentukan'], ['Kondisi awal kendaraan', w.kondisi], ['Catatan', w.catatan]]);
+  samplePhotos(doc, jobTypePhotos(w.jenis_pekerjaan));
   section(doc, 'Rincian pekerjaan');
   itemTable(doc, id, false);
   const usage = all('SELECT mu.*, m.kode, m.nama, m.satuan FROM material_usage mu JOIN materials m ON m.id=mu.material_id WHERE mu.wo_id=? AND mu.batal=0 ORDER BY mu.id', id);
@@ -78,6 +80,7 @@ export async function invoice(u: User, invoiceId: number): Promise<Out> {
   kop(doc, 'Invoice', [['No. invoice', inv.nomor], ['Tanggal', tgl(inv.tanggal)], ['Jatuh tempo', tgl(inv.jatuh_tempo)], ['Ref. WO', w.nomor], ['Status', inv.status]]);
   twoCol(doc, { title: 'Ditagihkan kepada', rows: custBlock(w).rows }, vehBlock(w));
   section(doc, `Rincian — ${w.jenis_pekerjaan || ''}`);
+  sampleThumb(doc, jobTypePhotos(w.jenis_pekerjaan));
   itemTable(doc, inv.wo_id);
   const rows: [string, string, boolean?][] = [['Subtotal', rp(sm.subtotal)]];
   if (sm.diskon) rows.push(['Diskon', '- ' + rp(sm.diskon)]);
@@ -129,6 +132,7 @@ export async function serahTerima(u: User, id: number): Promise<Out> {
   twoCol(doc, custBlock(w), vehBlock(w));
   section(doc, `Pekerjaan yang telah selesai — ${w.jenis_pekerjaan || ''}`);
   itemTable(doc, id, false);
+  samplePhotos(doc, jobTypePhotos(w.jenis_pekerjaan));
   section(doc, 'Kondisi kendaraan');
   kv(doc, [['Kondisi saat masuk', w.kondisi], ['Kondisi saat diserahkan', w.kondisi_serah || 'Baik, pekerjaan selesai sesuai pesanan.'], ['Tanggal masuk', tgl(w.tgl_masuk)], ['Tanggal selesai', tgl(w.tgl_selesai)], ['Teknisi', w.teknisi]]);
   table(doc, [{ h: 'Pemeriksaan bersama', w: 70 }, { h: 'Sesuai', w: 15, align: 'center' }, { h: 'Tidak', w: 15, align: 'center' }], checklistFor('serah_terima').map(x => [x, '[   ]', '[   ]']));

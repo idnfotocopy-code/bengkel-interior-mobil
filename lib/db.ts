@@ -53,6 +53,7 @@ export function db(): Database.Database {
     d.pragma('foreign_keys = ON');
     d.exec(SCHEMA);
     migrateBranches(d);
+    migrateJobTypePhotos(d);
     g.__bimdb = d;
     const cnt = (d.prepare('SELECT COUNT(*) n FROM users').get() as any).n;
     if (fresh || cnt === 0) {
@@ -114,6 +115,21 @@ export function migrateBranches(d: Database.Database) {
       if (!has) d.prepare("INSERT INTO cash_accounts(nama,jenis,saldo_awal,aktif,branch_id) VALUES('Kas Tunai','kas',0,1,?)").run(id);
     }
   })();
+}
+
+/** Kolom foto sampel pekerjaan (maks. 3) pada master jenis pekerjaan — migrasi aditif, aman diulang. */
+export const JOB_PHOTO_COLS = ['foto', 'foto2', 'foto3'] as const;
+export function migrateJobTypePhotos(d: Database.Database) {
+  const have = new Set((d.prepare('PRAGMA table_info(job_types)').all() as any[]).map(c => c.name));
+  for (const c of JOB_PHOTO_COLS) if (!have.has(c)) d.exec(`ALTER TABLE job_types ADD COLUMN ${c} TEXT`);
+}
+/** Daftar file foto sampel untuk sebuah jenis pekerjaan (berdasarkan nama, tidak peka huruf besar/kecil). */
+export function jobTypePhotos(nama?: string | null): { nama: string; deskripsi: string; fotos: string[] } | null {
+  if (!nama || !nama.trim()) return null;
+  const r = one<any>('SELECT * FROM job_types WHERE lower(nama)=lower(?)', nama.trim());
+  if (!r) return null;
+  const fotos = JOB_PHOTO_COLS.map(c => r[c]).filter(Boolean) as string[];
+  return fotos.length ? { nama: r.nama, deskripsi: r.deskripsi || '', fotos } : null;
 }
 
 /** Isi master jenis pekerjaan dari daftar bawaan bila tabel masih kosong (instalasi baru / DB lama sebelum modul ini). */
