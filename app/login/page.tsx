@@ -2,9 +2,14 @@ import { loginAction } from './actions';
 import { Flash } from '@/components/ui';
 import { settings } from '@/lib/db';
 import { uploadUrl } from '@/lib/upload';
+import { headers } from 'next/headers';
+import { apkInfo } from '@/lib/apk';
+import ServerAddress from '@/components/ServerAddress';
 export const dynamic = 'force-dynamic';
 export default function Login({ searchParams }: { searchParams: any }) {
   const s = settings();
+  const apk = apkInfo();
+  const inApp = /BengkelInteriorApp\//.test(headers().get('user-agent') || '');
   return (
     <div className="min-h-screen bg-gradient-to-br from-brand-900 via-brand-800 to-brand-600 flex items-center justify-center p-4">
       <div className="w-full max-w-4xl grid md:grid-cols-2 rounded-2xl overflow-hidden shadow-2xl bg-white">
@@ -29,6 +34,18 @@ export default function Login({ searchParams }: { searchParams: any }) {
             <div><label className="label">Password</label><input name="password" type="password" className="input" required autoComplete="current-password" /></div>
             <button className="btn btn-primary w-full py-2.5">Masuk</button>
           </form>
+          {apk && !inApp && (
+            <div className="mt-6 rounded-xl border border-brand-200 bg-brand-50 p-4">
+              <div className="flex items-center gap-2 text-sm font-bold text-brand-900"><span className="text-lg">📱</span> Aplikasi Android</div>
+              <a href="/api/apk" download="bengkel-interior-mobil.apk" className="btn btn-accent mt-3 flex w-full whitespace-normal font-bold items-center justify-center gap-2 py-2.5">⬇ Download Aplikasi Android (APK)</a>
+              <div className="mt-1.5 text-center text-[11px] text-slate-500">Versi {apk.versionName} · {apk.sizeLabel} · Android 5.0 ke atas</div>
+              <ol className="mt-3 list-decimal space-y-0.5 pl-4 text-xs text-slate-600">
+                <li>Unduh lalu buka file APK di HP.</li>
+                <li>Bila diminta, izinkan <b>&quot;Instal dari sumber tidak dikenal&quot;</b> (Install unknown apps) untuk Chrome/File Manager, lalu ketuk <b>Instal</b>. Jika Play Protect bertanya, pilih <b>Tetap instal</b>.</li>
+                <li>Saat aplikasi pertama dibuka, isi <b>alamat server</b> di bawah ini.</li>
+              </ol>
+              <ServerAddress />
+            </div>)}
           <p className="mt-6 text-center text-xs text-slate-400">© 2026 idnindonesia @nickibnu</p>
         </div>
       </div>

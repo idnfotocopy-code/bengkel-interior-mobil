@@ -4,3 +4,6 @@ data/*.db*
 public/uploads/*
 !public/uploads/.gitkeep
 data/backups/
+
+# APK Android (dibangun dari android-app/, ikut paket deploy, tidak disimpan di git)
+public/download/*.apk
